@@ -89,6 +89,13 @@ scp root@164.92.65.37:/home/poppop/PopPopsGames/scores.json ./scores_backup.json
 ```
 Never `git push` a local `scores.json` to the server — it would wipe the grandkids' scores.
 
+### events.log on the server
+The live `events.log` is at `/home/poppop/PopPopsGames/events.log`. It is **not** in git.
+To back it up locally:
+```bash
+scp root@164.92.65.37:/home/poppop/PopPopsGames/events.log ./events_backup.log
+```
+
 ### HTTPS certificate
 Issued by Let's Encrypt via certbot. Covers all three domains. Auto-renews — no action needed.
 Config is at `/etc/nginx/sites-enabled/poppopsgames` on the server.

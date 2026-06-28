@@ -6,8 +6,9 @@ __pycache__/
 venv/
 env/
 
-# Saved player scores (runtime data)
+# Saved player scores and event log (runtime data — never commit)
 scores.json
+events.log
 
 # Editor / OS
 .vscode/*.log

@@ -134,6 +134,8 @@ h1 {
   cursor: pointer;
 }
 .name-list li:hover { background: var(--key); color: var(--accent); }
+.name-list li.name-add-hint { color: var(--muted); font-style: italic; }
+.name-list li.name-add-hint:hover { color: var(--accent); }
 .score-num {
   font-size: 1.8rem;
   font-weight: 800;

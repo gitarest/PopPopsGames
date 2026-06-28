@@ -133,6 +133,8 @@ async function dropCol(col) {
 
   // Animate the computer's piece falling (if it moved)
   if (compCol !== -1) {
+    els.status.textContent = "Computer is dropping a piece…";
+    els.status.className = "status";
     await animateDrop(compCol, compRow, "computer");
   }
 
@@ -275,6 +277,17 @@ function renderNameList(filter) {
   if (current && "guest".startsWith(f)) addNameOption("Guest", "");
   for (const n of (state && state.names) || []) {
     if (n !== current && n.toLowerCase().startsWith(f)) addNameOption(n, n);
+  }
+  const trimmed = filter.trim();
+  const exactMatch = (state && state.names || []).some(n => n.toLowerCase() === trimmed.toLowerCase());
+  if (trimmed && !exactMatch && trimmed.toLowerCase() !== "guest") {
+    addNameOption(`+ Add "${trimmed}"`, trimmed);
+  } else if (!trimmed) {
+    const li = document.createElement("li");
+    li.textContent = "+ Add new player…";
+    li.className = "name-add-hint";
+    li.addEventListener("mousedown", e => { e.preventDefault(); els.nameInput.focus(); });
+    els.nameList.appendChild(li);
   }
   els.nameList.hidden = els.nameList.childElementCount === 0;
 }

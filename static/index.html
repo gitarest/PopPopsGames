@@ -13,8 +13,19 @@
     <!-- Player name + running total across all games -->
     <div id="score" class="score" aria-label="Score">
       <div class="score-side">
-        <button id="name-btn" class="score-label name-btn"
-                title="Tap to set your name (blank = guest)">Guest</button>
+        <span class="score-label">Player</span>
+        <div class="name-btn-wrap">
+          <svg class="pencil-icon" viewBox="0 0 14 14" width="13" height="13" aria-hidden="true">
+            <g transform="translate(7,7) rotate(-45)">
+              <rect x="-2" y="-6" width="4" height="2.5" rx="1" fill="#fca5a5"/>
+              <rect x="-2" y="-3.5" width="4" height="7" fill="#fbbf24"/>
+              <polygon points="-2,3.5 2,3.5 0,6.5" fill="#d97706"/>
+              <polygon points="-0.8,5.8 0.8,5.8 0,7.5" fill="#475569"/>
+            </g>
+          </svg>
+          <button id="name-btn" class="name-btn"
+                  title="Tap to set your name (blank = guest)">Guest</button>
+        </div>
         <input id="name-input" class="name-input" type="text"
                maxlength="20" placeholder="name…" autocomplete="off" hidden>
         <ul id="name-list" class="name-list" hidden></ul>

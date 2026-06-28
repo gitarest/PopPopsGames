@@ -12,8 +12,15 @@ import json
 import os
 import string
 import uuid
+from datetime import datetime, timezone, timedelta
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+try:
+    from zoneinfo import ZoneInfo as _ZI
+    _DENVER_TZ = _ZI("America/Denver")
+except Exception:
+    _DENVER_TZ = None
 
 # Game modules — import under their original names so tests and handler code
 # that reference these symbols continue to work without changes.
@@ -45,6 +52,27 @@ SESSIONS = {}
 # Named scores, persisted to disk.
 # {name: {game_key: {"player": int, "hangman": int}}}
 SCORES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scores.json")
+LOG_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "events.log")
+
+
+def _denver_now():
+    utc = datetime.now(timezone.utc)
+    if _DENVER_TZ is not None:
+        dt = utc.astimezone(_DENVER_TZ)
+        return dt.strftime("%Y-%m-%d %H:%M:%S ") + dt.tzname()
+    dt = utc + timedelta(hours=-7)
+    return dt.strftime("%Y-%m-%d %H:%M:%S MST")
+
+
+def log_event(ip, player, game, event):
+    """Append one line to events.log: timestamp | ip | player | game | event."""
+    label = player or "Guest"
+    line = f"{_denver_now()} | {ip or 'unknown'} | {label} | {game} | {event}\n"
+    try:
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line)
+    except OSError:
+        pass
 
 CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -144,7 +172,7 @@ def total_score(session):
     return totals
 
 
-def apply_score(session):
+def apply_score(session, ip=None):
     """Award Hangman points exactly once per completed game."""
     game = session["game"]
     if game["scored"]:
@@ -155,14 +183,16 @@ def apply_score(session):
     score = active_score(session, "hangman")
     if state["won"]:
         score["player"] += level_points(game["level"])
+        log_event(ip, session["name"], "hangman", "win")
     else:
         score["hangman"] += 1
+        log_event(ip, session["name"], "hangman", "loss")
     game["scored"] = True
     if session["name"]:
         save_scores()
 
 
-def ttt_apply_score(session):
+def ttt_apply_score(session, ip=None):
     """Award TTT points exactly once per completed game."""
     game = session["ttt_game"]
     if game["scored"] or not game["over"]:
@@ -170,14 +200,18 @@ def ttt_apply_score(session):
     score = active_score(session, "tictactoe")
     if game["winner"] == "X":
         score["player"] += 1
+        log_event(ip, session["name"], "tictactoe", "win")
     elif game["winner"] == "O":
         score["hangman"] += 1
+        log_event(ip, session["name"], "tictactoe", "loss")
+    else:
+        log_event(ip, session["name"], "tictactoe", "draw")
     game["scored"] = True
     if session["name"]:
         save_scores()
 
 
-def rps_apply_score(session):
+def rps_apply_score(session, ip=None):
     """Award RPS points exactly once per completed game."""
     game = session["rps_game"]
     if game["scored"] or not game["over"]:
@@ -185,18 +219,22 @@ def rps_apply_score(session):
     score = active_score(session, "rps")
     if game["result"] == "win":
         score["player"] += 1
+        log_event(ip, session["name"], "rps", "win")
     elif game["result"] == "loss":
         score["hangman"] += 1
+        log_event(ip, session["name"], "rps", "loss")
+    else:
+        log_event(ip, session["name"], "rps", "draw")
     game["scored"] = True
     if session["name"]:
         save_scores()
 
 
-def rps_build_payload(session):
+def rps_build_payload(session, ip=None):
     """Score any finished RPS game and build the full client payload."""
     if "rps_game" not in session:
         session["rps_game"] = rps_new_game()
-    rps_apply_score(session)
+    rps_apply_score(session, ip)
     return {
         **rps_game_state(session["rps_game"]),
         "name": session["name"],
@@ -206,7 +244,7 @@ def rps_build_payload(session):
     }
 
 
-def cf_apply_score(session):
+def cf_apply_score(session, ip=None):
     """Award Connect Four points exactly once per completed game."""
     game = session["cf_game"]
     if game["scored"] or not game["over"]:
@@ -214,18 +252,22 @@ def cf_apply_score(session):
     score = active_score(session, "connectfour")
     if game["winner"] == "P":
         score["player"] += 1
+        log_event(ip, session["name"], "connectfour", "win")
     elif game["winner"] == "C":
         score["hangman"] += 1
+        log_event(ip, session["name"], "connectfour", "loss")
+    else:
+        log_event(ip, session["name"], "connectfour", "draw")
     game["scored"] = True
     if session["name"]:
         save_scores()
 
 
-def cf_build_payload(session):
+def cf_build_payload(session, ip=None):
     """Score any finished Connect Four game and build the full client payload."""
     if "cf_game" not in session:
         session["cf_game"] = cf_new_game()
-    cf_apply_score(session)
+    cf_apply_score(session, ip)
     return {
         **cf_game_state(session["cf_game"]),
         "name": session["name"],
@@ -235,9 +277,9 @@ def cf_build_payload(session):
     }
 
 
-def build_payload(session):
+def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
-    apply_score(session)
+    apply_score(session, ip)
     return {
         **game_state(session["game"]),
         "name": session["name"],
@@ -247,11 +289,11 @@ def build_payload(session):
     }
 
 
-def ttt_build_payload(session):
+def ttt_build_payload(session, ip=None):
     """Score any finished TTT game and build the full client payload."""
     if "ttt_game" not in session:
         session["ttt_game"] = new_ttt_game()
-    ttt_apply_score(session)
+    ttt_apply_score(session, ip)
     return {
         **ttt_state(session["ttt_game"]),
         "name": session["name"],
@@ -283,6 +325,13 @@ def new_session():
 
 class HangmanHandler(BaseHTTPRequestHandler):
     server_version = "PopPopsGames/1.0"
+
+    def get_client_ip(self):
+        """Return the real client IP (checks X-Forwarded-For set by nginx)."""
+        xff = self.headers.get("X-Forwarded-For", "").strip()
+        if xff:
+            return xff.split(",")[0].strip()
+        return self.client_address[0]
 
     def get_session_id(self):
         raw = self.headers.get("Cookie")
@@ -353,18 +402,28 @@ class HangmanHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/state":
+        ip = self.get_client_ip()
+        if self.path in ("/", ""):
             sid, session, is_new = self.get_session()
-            self.send_json(build_payload(session), sid=sid, set_cookie=is_new)
+            log_event(ip, session["name"], "launcher", "visit")
+            self.send_static(self.path)
+        elif self.path == "/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(build_payload(session, ip), sid=sid, set_cookie=is_new)
         elif self.path == "/ttt/state":
             sid, session, is_new = self.get_session()
-            self.send_json(ttt_build_payload(session), sid=sid, set_cookie=is_new)
+            self.send_json(ttt_build_payload(session, ip), sid=sid, set_cookie=is_new)
         elif self.path == "/rps/state":
             sid, session, is_new = self.get_session()
-            self.send_json(rps_build_payload(session), sid=sid, set_cookie=is_new)
+            self.send_json(rps_build_payload(session, ip), sid=sid, set_cookie=is_new)
         elif self.path == "/connectfour/state":
             sid, session, is_new = self.get_session()
-            self.send_json(cf_build_payload(session), sid=sid, set_cookie=is_new)
+            self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/"):
+            sid, session, is_new = self.get_session()
+            game_name = self.path.strip("/")
+            log_event(ip, session["name"], game_name, "visit")
+            self.send_static(self.path)
         else:
             self.send_static(self.path)
 
@@ -401,6 +460,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
     def handle_guess(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         game = session["game"]
         data = self.read_json_body()
         letter = str(data.get("letter", "")).strip().upper()
@@ -412,33 +472,48 @@ class HangmanHandler(BaseHTTPRequestHandler):
             and letter in string.ascii_uppercase
         )
         if valid and letter not in game["guessed"]:
+            if not game.get("start_logged"):
+                log_event(ip, session["name"], "hangman", f"start:{game['level']}")
+                game["start_logged"] = True
             game["guessed"].append(letter)
             if letter not in game["word"]:
                 game["wrong"] += 1
 
-        self.send_json(build_payload(session), sid=sid, set_cookie=is_new)
+        self.send_json(build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_new(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         data = self.read_json_body()
         level = str(data.get("level", "")).strip().lower() or session["game"]["level"]
         session["game"] = new_game(level)
-        self.send_json(build_payload(session), sid=sid, set_cookie=is_new)
+        session["game"]["start_logged"] = True
+        log_event(ip, session["name"], "hangman", f"start:{level}")
+        self.send_json(build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_name(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         data = self.read_json_body()
         name = normalize_name(str(data.get("name", "")))
         session["name"] = name or None
-        self.send_json(build_payload(session), sid=sid, set_cookie=is_new)
+        if name and name not in SCORES:
+            SCORES[name] = {}
+            save_scores()
+        log_event(ip, session["name"], "session", "name_set")
+        self.send_json(build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_ttt_new(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         session["ttt_game"] = new_ttt_game()
-        self.send_json(ttt_build_payload(session), sid=sid, set_cookie=is_new)
+        session["ttt_game"]["start_logged"] = True
+        log_event(ip, session["name"], "tictactoe", "start")
+        self.send_json(ttt_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_ttt_move(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         if "ttt_game" not in session:
             session["ttt_game"] = new_ttt_game()
         game = session["ttt_game"]
@@ -449,6 +524,9 @@ class HangmanHandler(BaseHTTPRequestHandler):
                 and isinstance(cell, int)
                 and 0 <= cell <= 8
                 and game["board"][cell] is None):
+            if not game.get("start_logged"):
+                log_event(ip, session["name"], "tictactoe", "start")
+                game["start_logged"] = True
             game["board"][cell] = "X"
             winner = ttt_check_winner(game["board"])
             if winner:
@@ -463,38 +541,52 @@ class HangmanHandler(BaseHTTPRequestHandler):
                         game["winner"] = winner
                         game["over"] = True
 
-        self.send_json(ttt_build_payload(session), sid=sid, set_cookie=is_new)
+        self.send_json(ttt_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_rps_new(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         session["rps_game"] = rps_new_game()
-        self.send_json(rps_build_payload(session), sid=sid, set_cookie=is_new)
+        session["rps_game"]["start_logged"] = True
+        log_event(ip, session["name"], "rps", "start")
+        self.send_json(rps_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_rps_play(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         if "rps_game" not in session:
             session["rps_game"] = rps_new_game()
         data = self.read_json_body()
         choice = str(data.get("choice", "")).strip().lower()
+        if not session["rps_game"].get("start_logged"):
+            log_event(ip, session["name"], "rps", "start")
+            session["rps_game"]["start_logged"] = True
         rps_play(session["rps_game"], choice)
-        self.send_json(rps_build_payload(session), sid=sid, set_cookie=is_new)
+        self.send_json(rps_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_cf_new(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         data = self.read_json_body()
         level = str(data.get("level", "")).strip().lower() or session["cf_game"]["level"]
         session["cf_game"] = cf_new_game(level)
-        self.send_json(cf_build_payload(session), sid=sid, set_cookie=is_new)
+        session["cf_game"]["start_logged"] = True
+        log_event(ip, session["name"], "connectfour", f"start:{level}")
+        self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_cf_drop(self):
         sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
         if "cf_game" not in session:
             session["cf_game"] = cf_new_game()
         data = self.read_json_body()
         col = data.get("col")
         if isinstance(col, int) and 0 <= col < 7:
+            if not session["cf_game"].get("start_logged"):
+                log_event(ip, session["name"], "connectfour", f"start:{session['cf_game']['level']}")
+                session["cf_game"]["start_logged"] = True
             cf_drop(session["cf_game"], col)
-        self.send_json(cf_build_payload(session), sid=sid, set_cookie=is_new)
+        self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

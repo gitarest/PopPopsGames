@@ -45,7 +45,7 @@ body {
 /* Score / name section */
 .score {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
   gap: 1.25rem;
   margin-bottom: 1.5rem;
@@ -66,13 +66,28 @@ body {
   text-transform: uppercase;
   color: var(--muted);
 }
+.name-btn-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.pencil-icon {
+  flex-shrink: 0;
+  opacity: 0.85;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.name-btn-wrap:hover .pencil-icon { opacity: 1; }
 .name-btn {
   max-width: 7rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: inherit;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
   font-weight: 600;
+  color: var(--text);
   background: none;
   border: none;
   padding: 0;
@@ -117,6 +132,8 @@ body {
   cursor: pointer;
 }
 .name-list li:hover { background: var(--key); color: var(--accent); }
+.name-list li.name-add-hint { color: var(--muted); font-style: italic; }
+.name-list li.name-add-hint:hover { color: var(--accent); }
 .score-num {
   font-size: 1.8rem;
   font-weight: 800;
@@ -128,6 +145,7 @@ body {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--muted);
+  align-self: center;
 }
 
 /* "Choose a game" label */
