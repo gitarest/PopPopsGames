@@ -594,6 +594,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
 def main():
     srv = ThreadingHTTPServer((HOST, PORT), HangmanHandler)
+    log_event("server", "-", "server", "restart")
     print(f"Pop Pop's Games running at http://localhost:{PORT}  (Ctrl+C to stop)")
     try:
         srv.serve_forever()
