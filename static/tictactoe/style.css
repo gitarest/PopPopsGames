@@ -242,3 +242,24 @@ h1 {
   transition: filter 0.15s;
 }
 .new-game:hover { filter: brightness(1.1); }
+
+.level-btns {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin: 0.6rem 0 0;
+}
+.level-btn {
+  padding: 0.3rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  background: var(--key);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.level-btn:hover { color: var(--text); }
+.level-btn.active { color: var(--accent); border-color: var(--accent); }

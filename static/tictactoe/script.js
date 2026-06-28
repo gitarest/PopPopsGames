@@ -4,12 +4,15 @@ const els = {
   board: document.getElementById("board"),
   status: document.getElementById("status"),
   newGame: document.getElementById("new-game"),
+  levelBtns: document.getElementById("level-btns"),
   scorePlayer: document.getElementById("score-player"),
   scoreHangman: document.getElementById("score-hangman"),
   nameBtn: document.getElementById("name-btn"),
   nameInput: document.getElementById("name-input"),
   nameList: document.getElementById("name-list"),
 };
+
+const LEVEL_KEY = "ttt.level";
 
 let state = null;
 
@@ -34,7 +37,13 @@ async function postJSON(url, body) {
 }
 
 async function loadState() {
-  render(await (await fetch("/ttt/state")).json());
+  const saved = localStorage.getItem(LEVEL_KEY);
+  const s = await (await fetch("/ttt/state")).json();
+  if (saved && s.levels && s.levels.includes(saved) && s.level !== saved) {
+    render(await postJSON("/ttt/new", { level: saved }));
+  } else {
+    render(s);
+  }
 }
 
 async function move(cell) {
@@ -42,8 +51,24 @@ async function move(cell) {
   render(await postJSON("/ttt/move", { cell }));
 }
 
-async function startNew() {
-  render(await postJSON("/ttt/new", {}));
+async function startNew(level) {
+  const lvl = level || (state && state.level) || localStorage.getItem(LEVEL_KEY) || "easy";
+  render(await postJSON("/ttt/new", { level: lvl }));
+}
+
+function renderLevelBtns(levels, current) {
+  if (!els.levelBtns) return;
+  els.levelBtns.innerHTML = "";
+  for (const lvl of levels) {
+    const btn = document.createElement("button");
+    btn.textContent = lvl.charAt(0).toUpperCase() + lvl.slice(1);
+    btn.className = "level-btn" + (lvl === current ? " active" : "");
+    btn.addEventListener("click", () => {
+      localStorage.setItem(LEVEL_KEY, lvl);
+      startNew(lvl);
+    });
+    els.levelBtns.appendChild(btn);
+  }
 }
 
 // After setting the name the server returns a Hangman payload; re-fetch the
@@ -76,6 +101,9 @@ function render(s) {
     cell.disabled = s.over || val !== null;
   });
 
+  // Level buttons
+  if (s.levels) renderLevelBtns(s.levels, s.level);
+
   // Status message
   els.status.className = "status";
   if (s.winner === "X") {
@@ -91,7 +119,7 @@ function render(s) {
   }
 }
 
-els.newGame.addEventListener("click", startNew);
+els.newGame.addEventListener("click", () => startNew());
 
 // ----- Inline name editor (same as hangman game) -----
 let committing = false;

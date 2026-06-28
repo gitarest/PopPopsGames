@@ -1,5 +1,7 @@
 """Tic-Tac-Toe game logic and minimax AI for Pop Pop's Games."""
 
+import random
+
 # All eight winning lines for a 3×3 board (indexed 0-8, row-major).
 TTT_LINES = [
     (0, 1, 2), (3, 4, 5), (6, 7, 8),
@@ -8,9 +10,11 @@ TTT_LINES = [
 ]
 
 
-def new_game():
+def new_game(level="easy"):
     """Return a fresh TTT game dict."""
-    return {"board": [None] * 9, "over": False, "winner": None, "scored": False}
+    if level not in ("easy", "expert"):
+        level = "expert"
+    return {"board": [None] * 9, "over": False, "winner": None, "scored": False, "level": level}
 
 
 def check_winner(board):
@@ -36,6 +40,12 @@ def _minimax(board, is_maximizing):
             scores.append(_minimax(board, not is_maximizing))
             board[i] = None
     return max(scores) if is_maximizing else min(scores)
+
+
+def random_move(board):
+    """Return a random empty cell index, or None if the board is full."""
+    empties = [i for i in range(9) if board[i] is None]
+    return random.choice(empties) if empties else None
 
 
 def best_move(board):
@@ -65,4 +75,6 @@ def game_state(game):
         "over": game["over"],
         "winner": game["winner"],
         "winning_line": winning_line,
+        "level": game.get("level", "expert"),
+        "levels": ["easy", "expert"],
     }

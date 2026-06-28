@@ -30,6 +30,7 @@ from tictactoe import (
     game_state as ttt_state,
     check_winner as ttt_check_winner,
     best_move as ttt_best_move,
+    random_move as ttt_random_move,
 )
 from rps import (
     new_game as rps_new_game,
@@ -509,7 +510,9 @@ class HangmanHandler(BaseHTTPRequestHandler):
     def handle_ttt_new(self):
         sid, session, is_new = self.get_session()
         ip = self.get_client_ip()
-        session["ttt_game"] = new_ttt_game()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["ttt_game"].get("level", "expert")
+        session["ttt_game"] = new_ttt_game(level)
         session["ttt_game"]["start_logged"] = True
         log_event(ip, session["name"], "tictactoe", "start")
         self.send_json(ttt_build_payload(session, ip), sid=sid, set_cookie=is_new)
@@ -536,7 +539,8 @@ class HangmanHandler(BaseHTTPRequestHandler):
                 game["winner"] = winner
                 game["over"] = True
             else:
-                ai = ttt_best_move(game["board"])
+                ai_fn = ttt_random_move if game.get("level") == "easy" else ttt_best_move
+                ai = ai_fn(game["board"])
                 if ai is not None:
                     game["board"][ai] = "O"
                     winner = ttt_check_winner(game["board"])
