@@ -41,6 +41,58 @@ the same machine works without it; only other devices are blocked otherwise.
   `-WebSession $S`. Forcing a deterministic win is easy — medium = "programmer",
   expert = "psychologist"; guess its unique letters.
 
+## Deployment
+
+The app is live in production on a DigitalOcean droplet.
+
+| Thing | Value |
+|---|---|
+| Production URLs | `https://mccontek.com`, `https://www.mccontek.com`, `https://games.mccontek.com` |
+| Server IP | `164.92.65.37` |
+| GitHub repo | `https://github.com/gitarest/PopPopsGames` (private) |
+| Server user | `poppop` (runs the app), `root` (SSH/admin) |
+| App directory | `/home/poppop/PopPopsGames` |
+| Service name | `poppopsgames` (systemd) |
+
+### Deploying changes
+
+Use the `/deploy` skill — it commits, pushes to GitHub, and restarts the server:
+```
+/deploy
+```
+
+To deploy manually:
+```bash
+git add -A && git commit -m "description"
+git push origin master
+ssh root@164.92.65.37 "cd /home/poppop/PopPopsGames && git pull && systemctl restart poppopsgames"
+```
+
+### SSH access
+```bash
+ssh root@164.92.65.37
+```
+No password needed — SSH key is installed. Key lives at `~/.ssh/id_ed25519`.
+
+### Server management
+```bash
+systemctl status poppopsgames    # check if running
+systemctl restart poppopsgames   # restart after manual changes
+journalctl -u poppopsgames -f    # tail logs
+```
+
+### scores.json on the server
+The live `scores.json` is at `/home/poppop/PopPopsGames/scores.json`. It is **not** in git.
+To back it up locally:
+```bash
+scp root@164.92.65.37:/home/poppop/PopPopsGames/scores.json ./scores_backup.json
+```
+Never `git push` a local `scores.json` to the server — it would wipe the grandkids' scores.
+
+### HTTPS certificate
+Issued by Let's Encrypt via certbot. Covers all three domains. Auto-renews — no action needed.
+Config is at `/etc/nginx/sites-enabled/poppopsgames` on the server.
+
 ## Architecture
 
 Pop Pop's Games is a browser-based multi-game platform. The Python side is a pure
