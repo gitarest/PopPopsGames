@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Saved player scores (runtime data)
+scores.json
+
+# Editor / OS
+.vscode/*.log
+.DS_Store
+Thumbs.db
+static/*.tmp.*
+
+# Deploy credentials (never commit)
+.claude/skills/deploy/server.env

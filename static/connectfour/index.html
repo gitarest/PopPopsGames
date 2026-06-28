@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect Four — Pop Pop's Games</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game">
+    <h1>Connect Four</h1>
+
+    <div id="score" class="score" aria-label="Score">
+      <div class="score-side">
+        <button id="name-btn" class="score-label name-btn"
+                title="Tap to set your name (blank = guest)">Guest</button>
+        <input id="name-input" class="name-input" type="text"
+               maxlength="20" placeholder="name…" autocomplete="off" hidden>
+        <ul id="name-list" class="name-list" hidden></ul>
+        <span id="score-player" class="score-num">0</span>
+      </div>
+      <span class="score-vs">vs</span>
+      <div class="score-side">
+        <span class="score-label">Computer</span>
+        <span id="score-hangman" class="score-num">0</span>
+      </div>
+    </div>
+
+    <div class="level-bar">
+      <span class="level-label">Difficulty:</span>
+      <div id="level-btns" class="level-btns"></div>
+    </div>
+
+    <p id="status" class="status">Your turn — drop a piece</p>
+
+    <!-- Drop buttons and board are built by script.js -->
+    <div class="board-wrap">
+      <div id="drop-btns" class="drop-btns"></div>
+      <div id="board" class="board"></div>
+    </div>
+
+    <button id="new-game" class="new-game">New Game</button>
+
+    <a href="/" class="home-btn">
+      <img src="/logo.png" alt="Pop Pop's Games">
+    </a>
+    <div class="speed-control">
+      <span class="speed-label">Speed</span>
+      <div class="speed-row">
+        <span class="speed-hint">Slower</span>
+        <input type="range" id="speed-slider" class="speed-slider"
+               min="0.1" max="1.0" step="0.05" value="0.55">
+        <span class="speed-hint">Faster</span>
+      </div>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

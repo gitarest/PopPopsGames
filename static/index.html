@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pop Pop's Games</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="launcher">
+    <img src="/logo.png" alt="Pop Pop's Games" class="logo">
+
+    <!-- Player name + running total across all games -->
+    <div id="score" class="score" aria-label="Score">
+      <div class="score-side">
+        <button id="name-btn" class="score-label name-btn"
+                title="Tap to set your name (blank = guest)">Guest</button>
+        <input id="name-input" class="name-input" type="text"
+               maxlength="20" placeholder="name…" autocomplete="off" hidden>
+        <ul id="name-list" class="name-list" hidden></ul>
+        <span id="score-player" class="score-num">0</span>
+      </div>
+      <span class="score-vs">vs</span>
+      <div class="score-side">
+        <span class="score-label">Computer</span>
+        <span id="score-hangman" class="score-num">0</span>
+      </div>
+    </div>
+
+    <p class="choose-label">Choose a game</p>
+
+    <div class="games-grid">
+      <a href="/hangman" class="game-card">
+        <span class="game-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 68" width="56" height="68"
+               style="display:block;margin:0 auto" aria-hidden="true">
+            <!-- Gallows -->
+            <line x1="2"  y1="53" x2="54" y2="53" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="11" y1="53" x2="11" y2="3"  stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="11" y1="3"  x2="40" y2="3"  stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="11" y1="14" x2="20" y2="3"  stroke="#64748b" stroke-width="2"   stroke-linecap="round"/>
+            <line x1="40" y1="3"  x2="40" y2="10" stroke="#94a3b8" stroke-width="2"   stroke-linecap="round"/>
+            <!-- Head -->
+            <circle cx="40" cy="16" r="6" fill="none" stroke="#e2e8f0" stroke-width="2"/>
+            <!-- Body -->
+            <line x1="40" y1="22" x2="40" y2="36" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+            <!-- Arms -->
+            <line x1="40" y1="26" x2="32" y2="33" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+            <line x1="40" y1="26" x2="48" y2="33" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+            <!-- One leg (other missing — game still in play) -->
+            <line x1="40" y1="36" x2="33" y2="47" stroke="#e2e8f0" stroke-width="2" stroke-linecap="round"/>
+            <!-- Word: C A _ -->
+            <text x="13" y="64" font-size="9" font-family="monospace" font-weight="bold" fill="#4ade80" text-anchor="middle">C</text>
+            <line x1="9"  y1="66" x2="17" y2="66" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round"/>
+            <text x="28" y="64" font-size="9" font-family="monospace" font-weight="bold" fill="#4ade80" text-anchor="middle">A</text>
+            <line x1="24" y1="66" x2="32" y2="66" stroke="#4ade80" stroke-width="1.2" stroke-linecap="round"/>
+            <text x="43" y="64" font-size="9" font-family="monospace" font-weight="bold" fill="#94a3b8" text-anchor="middle">_</text>
+            <line x1="39" y1="66" x2="47" y2="66" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="game-name">Hangman</span>
+      </a>
+      <a href="/tictactoe" class="game-card">
+        <span class="game-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 54 54" width="54" height="54"
+               style="display:block;margin:0 auto" aria-hidden="true">
+            <!-- Grid lines -->
+            <line x1="18" y1="1"  x2="18" y2="53" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="36" y1="1"  x2="36" y2="53" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="1"  y1="18" x2="53" y2="18" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="1"  y1="36" x2="53" y2="36" stroke="#475569" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- X top-left (9,9) -->
+            <line x1="4"  y1="4"  x2="14" y2="14" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="14" y1="4"  x2="4"  y2="14" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- X center (27,27) -->
+            <line x1="22" y1="22" x2="32" y2="32" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="32" y1="22" x2="22" y2="32" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- X bottom-right (45,45) -->
+            <line x1="40" y1="40" x2="50" y2="50" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="50" y1="40" x2="40" y2="50" stroke="#f87171" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- O top-right (45,9) -->
+            <circle cx="45" cy="9"  r="6" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+            <!-- O middle-left (9,27) -->
+            <circle cx="9"  cy="27" r="6" fill="none" stroke="#38bdf8" stroke-width="2.5"/>
+          </svg>
+        </span>
+        <span class="game-name">Tic-Tac-Toe</span>
+      </a>
+      <a href="/rps" class="game-card">
+        <span class="game-icon" style="font-size:1.5rem;letter-spacing:0.1em">✊✋✌️</span>
+        <span class="game-name">Rock Paper Scissors</span>
+      </a>
+      <a href="/connectfour" class="game-card">
+        <span class="game-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 58" width="80" height="58"
+               style="display:block;margin:0 auto" aria-hidden="true">
+            <rect width="80" height="58" rx="6" fill="#1d4ed8"/>
+            <!-- top row -->
+            <circle cx="10" cy="11" r="6" fill="#1e293b"/>
+            <circle cx="24" cy="11" r="6" fill="#f87171"/>
+            <circle cx="38" cy="11" r="6" fill="#1e293b"/>
+            <circle cx="52" cy="11" r="6" fill="#1e293b"/>
+            <circle cx="66" cy="11" r="6" fill="#1e293b"/>
+            <!-- middle row -->
+            <circle cx="10" cy="29" r="6" fill="#f87171"/>
+            <circle cx="24" cy="29" r="6" fill="#fbbf24"/>
+            <circle cx="38" cy="29" r="6" fill="#f87171"/>
+            <circle cx="52" cy="29" r="6" fill="#1e293b"/>
+            <circle cx="66" cy="29" r="6" fill="#fbbf24"/>
+            <!-- bottom row -->
+            <circle cx="10" cy="47" r="6" fill="#f87171"/>
+            <circle cx="24" cy="47" r="6" fill="#f87171"/>
+            <circle cx="38" cy="47" r="6" fill="#fbbf24"/>
+            <circle cx="52" cy="47" r="6" fill="#fbbf24"/>
+            <circle cx="66" cy="47" r="6" fill="#fbbf24"/>
+            <!-- shine dots on colored pieces -->
+            <circle cx="8"  cy="9"  r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="22" cy="9"  r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="8"  cy="27" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="22" cy="27" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="36" cy="27" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="64" cy="27" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="8"  cy="45" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="22" cy="45" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="36" cy="45" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="50" cy="45" r="2" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="64" cy="45" r="2" fill="rgba(255,255,255,0.25)"/>
+          </svg>
+        </span>
+        <span class="game-name">Connect Four</span>
+      </a>
+    </div>
+  </main>
+
+  <script src="launcher.js"></script>
+</body>
+</html>

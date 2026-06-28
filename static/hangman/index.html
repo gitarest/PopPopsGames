@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hangman — Pop Pop's Games</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game">
+    <h1>Hangman</h1>
+
+    <!-- Difficulty picker. Buttons are filled in from the server's level list. -->
+    <div id="levels" class="levels" aria-label="Difficulty"></div>
+
+    <!-- Session scoreboard: Player vs Hangman. -->
+    <div id="score" class="score" aria-label="Score">
+      <div class="score-side">
+        <button id="name-btn" class="score-label name-btn"
+                title="Tap to set your name (blank = guest)">Guest</button>
+        <input id="name-input" class="name-input" type="text"
+               maxlength="20" placeholder="name…" autocomplete="off" hidden>
+        <ul id="name-list" class="name-list" hidden></ul>
+        <span id="score-player" class="score-num">0</span>
+      </div>
+      <span class="score-vs">vs</span>
+      <div class="score-side">
+        <span class="score-label">Hangman</span>
+        <span id="score-hangman" class="score-num">0</span>
+      </div>
+    </div>
+
+    <!-- The gallows + figure. Parts are revealed as wrong guesses mount. -->
+    <svg id="drawing" viewBox="0 0 200 220" aria-label="Hangman drawing">
+      <!-- Gallows (always visible) -->
+      <line class="gallows" x1="20"  y1="210" x2="120" y2="210"/>
+      <line class="gallows" x1="50"  y1="210" x2="50"  y2="20"/>
+      <line class="gallows" x1="50"  y1="20"  x2="130" y2="20"/>
+      <line class="gallows" x1="130" y1="20"  x2="130" y2="45"/>
+      <!-- Body parts: shown one-by-one for wrong guesses 1..6 -->
+      <circle class="part" data-part="1" cx="130" cy="60"  r="15"/>
+      <line   class="part" data-part="2" x1="130" y1="75"  x2="130" y2="130"/>
+      <line   class="part" data-part="3" x1="130" y1="90"  x2="105" y2="115"/>
+      <line   class="part" data-part="4" x1="130" y1="90"  x2="155" y2="115"/>
+      <line   class="part" data-part="5" x1="130" y1="130" x2="108" y2="165"/>
+      <line   class="part" data-part="6" x1="130" y1="130" x2="152" y2="165"/>
+    </svg>
+
+    <p id="status" class="status">&nbsp;</p>
+
+    <div id="word" class="word" aria-label="Word to guess"></div>
+
+    <p class="counter">
+      Wrong guesses: <span id="wrong">0</span> / <span id="max">6</span>
+    </p>
+
+    <div id="keyboard" class="keyboard"></div>
+
+    <button id="new-game" class="new-game">New Game</button>
+
+    <a href="/" class="home-btn">
+      <img src="/logo.png" alt="Pop Pop's Games">
+    </a>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

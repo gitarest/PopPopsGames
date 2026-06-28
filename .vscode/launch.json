@@ -1,0 +1,14 @@
+{
+  // Press F5 to run the Hangman server with the debugger attached.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Pop Pop's Games server",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/PopPopsGames.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
