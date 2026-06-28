@@ -327,7 +327,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
     server_version = "PopPopsGames/1.0"
 
     def get_client_ip(self):
-        """Return the real client IP (checks X-Forwarded-For set by nginx)."""
+        """Return the real client IP (checks X-Real-IP and X-Forwarded-For set by nginx)."""
+        xri = self.headers.get("X-Real-IP", "").strip()
+        if xri:
+            return xri
         xff = self.headers.get("X-Forwarded-For", "").strip()
         if xff:
             return xff.split(",")[0].strip()
