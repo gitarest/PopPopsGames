@@ -3,6 +3,8 @@
 const ROWS = 6;
 const COLS = 7;
 
+const CF_SPEED_KEY = "connectfour.speed";
+
 let state     = null;
 let hoverCol  = null;
 let dropping  = false; // true while drop animation is playing
@@ -65,13 +67,30 @@ async function postJSON(url, body) {
   return res.json();
 }
 
+// Apply saved speed: named players use server score, guests use localStorage.
+function applySpeedFromState(s) {
+  let val;
+  if (s.name && s.score && s.score.speed != null) {
+    val = s.score.speed;
+  } else {
+    const saved = localStorage.getItem(CF_SPEED_KEY);
+    val = saved != null ? +saved : +speedSlider.value;
+  }
+  speedSlider.value = val;
+  applySpeed(val);
+}
+
 async function loadState() {
-  render(await (await fetch("/connectfour/state")).json());
+  const s = await (await fetch("/connectfour/state")).json();
+  applySpeedFromState(s);
+  render(s);
 }
 
 async function startNew(level) {
   if (dropping) return;
-  render(await postJSON("/connectfour/new", level ? { level } : {}));
+  const body = { speed: +speedSlider.value };
+  if (level) body.level = level;
+  render(await postJSON("/connectfour/new", body));
 }
 
 async function setName(name) {
@@ -113,7 +132,7 @@ async function dropCol(col) {
   }
 
   // POST to server — both player and computer moves happen server-side
-  const newState = await postJSON("/connectfour/drop", { col });
+  const newState = await postJSON("/connectfour/drop", { col, speed: +speedSlider.value });
 
   // Animate the player's piece falling
   await animateDrop(col, playerRow, "player");
@@ -250,7 +269,11 @@ function applySpeed(val) {
   document.documentElement.style.setProperty("--flash-duration", `${(speed * 3).toFixed(2)}s`);
 }
 
-speedSlider.addEventListener("input", () => applySpeed(+speedSlider.value));
+speedSlider.addEventListener("input", () => {
+  const val = +speedSlider.value;
+  localStorage.setItem(CF_SPEED_KEY, val);
+  applySpeed(val);
+});
 applySpeed(+speedSlider.value); // initialize from HTML default
 
 // ---- Inline name editor (same pattern as other game pages) ----

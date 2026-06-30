@@ -41,6 +41,15 @@ from connectfour import (
     new_game as cf_new_game,
     game_state as cf_game_state,
     drop as cf_drop,
+    LEVELS as CF_LEVELS,
+    DEFAULT_LEVEL as CF_DEFAULT_LEVEL,
+)
+from simonsays import (
+    new_game as ss_new_game,
+    game_state as ss_game_state,
+    tap as ss_tap,
+    ready as ss_ready,
+    early_click as ss_early_click,
 )
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
@@ -251,6 +260,8 @@ def cf_apply_score(session, ip=None):
     if game["scored"] or not game["over"]:
         return
     score = active_score(session, "connectfour")
+    score.setdefault("level", CF_DEFAULT_LEVEL)
+    score.setdefault("speed", None)
     if game["winner"] == "P":
         score["player"] += 1
         log_event(ip, session["name"], "connectfour", "win")
@@ -259,6 +270,8 @@ def cf_apply_score(session, ip=None):
         log_event(ip, session["name"], "connectfour", "loss")
     else:
         log_event(ip, session["name"], "connectfour", "draw")
+    score["level"] = game.get("level", CF_DEFAULT_LEVEL)
+    score["speed"] = game.get("speed", None)
     game["scored"] = True
     if session["name"]:
         save_scores()
@@ -269,10 +282,50 @@ def cf_build_payload(session, ip=None):
     if "cf_game" not in session:
         session["cf_game"] = cf_new_game()
     cf_apply_score(session, ip)
+    score = active_score(session, "connectfour")
+    score.setdefault("level", CF_DEFAULT_LEVEL)
+    score.setdefault("speed", None)
     return {
         **cf_game_state(session["cf_game"]),
         "name": session["name"],
-        "score": active_score(session, "connectfour"),
+        "score": score,
+        "total_score": total_score(session),
+        "names": sorted(SCORES.keys()),
+    }
+
+
+def ss_apply_score(session, ip=None):
+    """Award Simon Says points exactly once per completed game."""
+    game = session["ss_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "simonsays")
+    score.setdefault("best", 0)
+    score.setdefault("level", "easy")
+    rounds = len(game["sequence"]) - 1
+    score["player"]  += rounds
+    score["hangman"] += 1
+    if rounds > score["best"]:
+        score["best"] = rounds
+    score["level"] = game.get("level", "easy")
+    log_event(ip, session["name"], "simonsays", f"over:rounds={rounds}")
+    game["scored"] = True
+    if session["name"]:
+        save_scores()
+
+
+def ss_build_payload(session, ip=None):
+    """Score any finished Simon Says game and build the full client payload."""
+    if "ss_game" not in session:
+        session["ss_game"] = ss_new_game()
+    ss_apply_score(session, ip)
+    score = active_score(session, "simonsays")
+    score.setdefault("best", 0)
+    score.setdefault("level", "easy")
+    return {
+        **ss_game_state(session["ss_game"]),
+        "name": session["name"],
+        "score": score,
         "total_score": total_score(session),
         "names": sorted(SCORES.keys()),
     }
@@ -315,6 +368,7 @@ def new_session():
         "ttt_game": new_ttt_game(),
         "rps_game": rps_new_game(),
         "cf_game": cf_new_game(),
+        "ss_game": ss_new_game(),
         "name": None,
         "guest_score": {},  # {game_key: {"player": N, "hangman": N}}
     }
@@ -377,7 +431,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -386,7 +440,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -423,7 +477,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/connectfour/state":
             sid, session, is_new = self.get_session()
             self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/"):
+        elif self.path == "/simonsays/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -450,6 +507,14 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_cf_drop()
         elif self.path == "/connectfour/new":
             self.handle_cf_new()
+        elif self.path == "/simonsays/new":
+            self.handle_ss_new()
+        elif self.path == "/simonsays/ready":
+            self.handle_ss_ready()
+        elif self.path == "/simonsays/tap":
+            self.handle_ss_tap()
+        elif self.path == "/simonsays/early":
+            self.handle_ss_early()
         else:
             self.send_error(404, "Not found")
 
@@ -575,8 +640,20 @@ class HangmanHandler(BaseHTTPRequestHandler):
         sid, session, is_new = self.get_session()
         ip = self.get_client_ip()
         data = self.read_json_body()
-        level = str(data.get("level", "")).strip().lower() or session["cf_game"]["level"]
+        requested = str(data.get("level", "")).strip().lower()
+        if requested in CF_LEVELS:
+            level = requested
+        elif session["name"]:
+            level = active_score(session, "connectfour").get("level", CF_DEFAULT_LEVEL)
+        else:
+            level = session["cf_game"].get("level", CF_DEFAULT_LEVEL)
+        try:
+            speed = round(float(data["speed"]), 2)
+            speed = max(0.1, min(1.0, speed))
+        except (KeyError, TypeError, ValueError):
+            speed = None
         session["cf_game"] = cf_new_game(level)
+        session["cf_game"]["speed"] = speed
         session["cf_game"]["start_logged"] = True
         log_event(ip, session["name"], "connectfour", f"start:{level}")
         self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
@@ -588,12 +665,64 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["cf_game"] = cf_new_game()
         data = self.read_json_body()
         col = data.get("col")
+        try:
+            speed = round(float(data["speed"]), 2)
+            session["cf_game"]["speed"] = max(0.1, min(1.0, speed))
+        except (KeyError, TypeError, ValueError):
+            pass
         if isinstance(col, int) and 0 <= col < 7:
             if not session["cf_game"].get("start_logged"):
                 log_event(ip, session["name"], "connectfour", f"start:{session['cf_game']['level']}")
                 session["cf_game"]["start_logged"] = True
             cf_drop(session["cf_game"], col)
         self.send_json(cf_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ss_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        requested = str(data.get("level", "")).strip().lower()
+        if requested in ("easy", "medium", "hard"):
+            level = requested
+        elif session["name"]:
+            level = active_score(session, "simonsays").get("level", "easy")
+        else:
+            level = "easy"
+        session["ss_game"] = ss_new_game(level)
+        session["ss_game"]["start_logged"] = True
+        log_event(ip, session["name"], "simonsays", f"start:{level}")
+        self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ss_ready(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ss_game" not in session:
+            session["ss_game"] = ss_new_game()
+        ss_ready(session["ss_game"])
+        self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ss_early(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ss_game" not in session:
+            session["ss_game"] = ss_new_game()
+        ss_early_click(session["ss_game"])
+        log_event(ip, session["name"], "simonsays", "early-click")
+        self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ss_tap(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ss_game" not in session:
+            session["ss_game"] = ss_new_game()
+        game = session["ss_game"]
+        data = self.read_json_body()
+        color = str(data.get("color", "")).strip().lower()
+        if not game.get("start_logged"):
+            log_event(ip, session["name"], "simonsays", f"start:{game.get('level','easy')}")
+            game["start_logged"] = True
+        ss_tap(game, color)
+        self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))
