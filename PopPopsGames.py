@@ -51,6 +51,14 @@ from simonsays import (
     ready as ss_ready,
     early_click as ss_early_click,
 )
+from blackjack import (
+    new_game as bj_new_game,
+    game_state as bj_game_state,
+    deal as bj_deal,
+    hit as bj_hit,
+    stand as bj_stand,
+    finalize as bj_finalize,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -331,6 +339,46 @@ def ss_build_payload(session, ip=None):
     }
 
 
+def bj_apply_score(session, ip=None):
+    """Award Blackjack points once per deck: player or computer wins based on most hands won."""
+    game = session["bj_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "blackjack")
+    pw, cw = game["player_wins"], game["computer_wins"]
+    if pw > cw:
+        score["player"] += 1
+        log_event(ip, session["name"], "blackjack", f"deck_win:p{pw}-c{cw}")
+    elif cw > pw:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "blackjack", f"deck_loss:p{pw}-c{cw}")
+    else:
+        log_event(ip, session["name"], "blackjack", f"deck_tie:p{pw}-c{cw}")
+    game["scored"] = True
+    if session["name"]:
+        save_scores()
+
+
+def bj_build_payload(session, ip=None):
+    """Auto-deal first hand if needed, score finished deck, build client payload."""
+    if "bj_game" not in session:
+        session["bj_game"] = bj_new_game()
+    game = session["bj_game"]
+    if game["phase"] == "deal":
+        bj_deal(game)
+        if not game.get("start_logged"):
+            log_event(ip, session["name"], "blackjack", "start")
+            game["start_logged"] = True
+    bj_apply_score(session, ip)
+    return {
+        **bj_game_state(session["bj_game"]),
+        "name": session["name"],
+        "score": active_score(session, "blackjack"),
+        "total_score": total_score(session),
+        "names": sorted(SCORES.keys()),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -369,6 +417,7 @@ def new_session():
         "rps_game": rps_new_game(),
         "cf_game": cf_new_game(),
         "ss_game": ss_new_game(),
+        "bj_game": bj_new_game(),
         "name": None,
         "guest_score": {},  # {game_key: {"player": N, "hangman": N}}
     }
@@ -431,7 +480,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -440,7 +489,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -480,7 +529,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/simonsays/state":
             sid, session, is_new = self.get_session()
             self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/"):
+        elif self.path == "/blackjack/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -515,6 +567,16 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_ss_tap()
         elif self.path == "/simonsays/early":
             self.handle_ss_early()
+        elif self.path == "/blackjack/new":
+            self.handle_bj_new()
+        elif self.path == "/blackjack/deal":
+            self.handle_bj_deal()
+        elif self.path == "/blackjack/hit":
+            self.handle_bj_hit()
+        elif self.path == "/blackjack/stand":
+            self.handle_bj_stand()
+        elif self.path == "/blackjack/finalize":
+            self.handle_bj_finalize()
         else:
             self.send_error(404, "Not found")
 
@@ -723,6 +785,52 @@ class HangmanHandler(BaseHTTPRequestHandler):
             game["start_logged"] = True
         ss_tap(game, color)
         self.send_json(ss_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bj_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        old = session.get("bj_game", {})
+        session["bj_game"] = bj_new_game()
+        # Preserve running tally across decks
+        session["bj_game"]["player_wins"]   = old.get("player_wins", 0)
+        session["bj_game"]["computer_wins"] = old.get("computer_wins", 0)
+        session["bj_game"]["ties"]          = old.get("ties", 0)
+        bj_deal(session["bj_game"])
+        session["bj_game"]["start_logged"] = True
+        log_event(ip, session["name"], "blackjack", "start")
+        self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bj_deal(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bj_game" not in session:
+            session["bj_game"] = bj_new_game()
+        bj_deal(session["bj_game"])
+        self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bj_hit(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bj_game" not in session:
+            session["bj_game"] = bj_new_game()
+        bj_hit(session["bj_game"])
+        self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bj_stand(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bj_game" not in session:
+            session["bj_game"] = bj_new_game()
+        bj_stand(session["bj_game"])
+        self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bj_finalize(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bj_game" not in session:
+            session["bj_game"] = bj_new_game()
+        bj_finalize(session["bj_game"])
+        self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

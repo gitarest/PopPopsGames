@@ -1,0 +1,207 @@
+:root {
+  --bg:        #1e293b;
+  --panel:     #0f172a;
+  --text:      #e2e8f0;
+  --muted:     #94a3b8;
+  --accent:    #4ade80;
+  --key:       #334155;
+  --key-hover: #475569;
+  --win-color: #4ade80;
+  --loss-color:#f87171;
+  --draw-color:#fbbf24;
+  --card-bg:   #f8fafc;
+  --card-dark: #1e3a5f;
+  --radius:    0.5rem;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.game {
+  width: 100%;
+  max-width: 480px;
+  margin: 2rem 1rem;
+  padding: 1.5rem;
+  background: var(--panel);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* ---- Score bar ---- */
+.score {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 0.5rem 1rem;
+  width: 100%;
+  justify-content: center;
+}
+.score-side { display: flex; align-items: center; gap: 0.5rem; }
+.score-label { font-size: 0.85rem; color: var(--muted); }
+.score-num   { font-size: 1.4rem; font-weight: 700; min-width: 2ch; text-align: center; }
+.score-vs    { font-size: 0.8rem; color: var(--muted); }
+
+.name-btn {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.3rem;
+  transition: background 0.15s;
+}
+.name-btn:hover { background: var(--key); }
+
+.name-input {
+  font-size: 0.9rem;
+  background: var(--key);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  width: 8rem;
+  outline: none;
+}
+
+.name-list {
+  position: absolute;
+  background: var(--panel);
+  border: 1px solid var(--key-hover);
+  border-radius: var(--radius);
+  list-style: none;
+  z-index: 100;
+  min-width: 9rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  margin-top: 0.2rem;
+}
+.name-list li { padding: 0.45rem 0.8rem; cursor: pointer; font-size: 0.9rem; }
+.name-list li:hover { background: var(--key); color: var(--accent); }
+.name-add-hint { color: var(--muted); font-style: italic; }
+
+/* ---- Running tally ---- */
+.tally {
+  display: flex;
+  gap: 1.2rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+.tally strong { color: var(--text); }
+.cards-left { margin-left: auto; }
+
+/* ---- Hands ---- */
+.hand-section { width: 100%; }
+
+.hand-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hand-value { color: var(--text); font-weight: 600; }
+
+.hand {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-height: 5.5rem;
+}
+
+/* ---- Cards ---- */
+.card {
+  width: 3.8rem;
+  height: 5.2rem;
+  background: var(--card-bg);
+  border-radius: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  color: #1e293b;
+  font-weight: 700;
+  user-select: none;
+}
+.card.red    { color: #dc2626; }
+.card.hidden { background: var(--card-dark); color: #93c5fd; font-size: 2rem; }
+
+.card-rank { font-size: 1.15rem; line-height: 1; }
+.card-suit { font-size: 1rem;    line-height: 1; }
+
+/* ---- Status ---- */
+.status {
+  font-size: 1.05rem;
+  font-weight: 600;
+  text-align: center;
+  min-height: 1.5em;
+}
+.status.win  { color: var(--win-color); }
+.status.loss { color: var(--loss-color); }
+.status.draw { color: var(--draw-color); }
+
+/* ---- Action buttons ---- */
+.actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.action-btn {
+  padding: 0.6rem 1.4rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--accent);
+  color: #0f172a;
+  font-family: inherit;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.action-btn.secondary {
+  background: var(--key);
+  color: var(--text);
+}
+.action-btn:disabled    { opacity: 0.35; cursor: default; transform: none; }
+.action-btn:not(:disabled):hover  { opacity: 0.85; }
+.action-btn:not(:disabled):active { transform: scale(0.97); }
+
+/* ---- Home button (matches other games) ---- */
+.home-btn {
+  display: block;
+  margin: 0.5rem auto 0;
+  max-width: 220px;
+  border-radius: 10px;
+  overflow: hidden;
+  opacity: 0.8;
+  transition: opacity 0.15s, transform 0.12s;
+}
+.home-btn img { display: block; width: 100%; }
+.home-btn:hover { opacity: 1; transform: scale(1.04); }
