@@ -83,7 +83,10 @@ def deal(game):
 
 
 def hit(game):
-    if game["phase"] != "player" or not game["deck"]:
+    if game["phase"] != "player":
+        return
+    if not game["deck"]:
+        stand(game)  # no cards left to draw — forced stand
         return
     game["player_hand"].append(game["deck"].pop())
     val = _hand_value(game["player_hand"])

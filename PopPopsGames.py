@@ -370,6 +370,15 @@ def bj_build_payload(session, ip=None):
             log_event(ip, session["name"], "blackjack", "start")
             game["start_logged"] = True
     bj_apply_score(session, ip)
+    # Auto-reshuffle: deck ran out naturally — carry tally into fresh deck and deal
+    if game["over"] and game["scored"]:
+        old = game
+        session["bj_game"] = bj_new_game()
+        session["bj_game"]["player_wins"]   = old["player_wins"]
+        session["bj_game"]["computer_wins"] = old["computer_wins"]
+        session["bj_game"]["ties"]          = old["ties"]
+        session["bj_game"]["start_logged"]  = True
+        bj_deal(session["bj_game"])
     return {
         **bj_game_state(session["bj_game"]),
         "name": session["name"],
