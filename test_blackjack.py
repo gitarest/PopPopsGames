@@ -42,17 +42,18 @@ class ApiClient:
 
 class IsolatedScores(unittest.TestCase):
     def setUp(self):
-        fd, self._path = tempfile.mkstemp(suffix=".json")
+        fd, self._db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        self._orig_file   = server.SCORES_FILE
+        self._orig_db     = server.DB_FILE
         self._orig_scores = server.SCORES
-        server.SCORES_FILE = self._path
+        server.DB_FILE = self._db_path
+        server.init_db()
         server.SCORES = {}
 
     def tearDown(self):
-        server.SCORES_FILE = self._orig_file
-        server.SCORES      = self._orig_scores
-        os.unlink(self._path)
+        server.DB_FILE = self._orig_db
+        server.SCORES  = self._orig_scores
+        os.unlink(self._db_path)
 
 
 # ---------------------------------------------------------------------------
@@ -309,11 +310,11 @@ class TestBJApi(IsolatedScores):
 
     def test_new_deals_fresh_deck(self):
         c = self.client()
-        c.call("/blackjack/state")  # consume some cards
+        c.call("/blackjack/state")
         st = c.call("/blackjack/new", {})
-        self.assertEqual(st["player_wins"], 0)
-        self.assertEqual(st["computer_wins"], 0)
+        # tally carries over intentionally — just verify a fresh 52-card deck was shuffled
         self.assertGreater(st["cards_remaining"], 44)
+        self.assertIn(st["phase"], ("player", "round_over"))
 
     def test_hit_adds_card(self):
         c = self.client()

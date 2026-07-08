@@ -45,20 +45,21 @@ class ApiClient:
 
 
 class IsolatedScores(unittest.TestCase):
-    """Base class: redirect SCORES to a temp file and start from an empty map."""
+    """Base class: redirect SCORES to a temp DB and start from an empty map."""
 
     def setUp(self):
-        fd, self._path = tempfile.mkstemp(suffix=".json")
+        fd, self._db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        self._orig_file = server.SCORES_FILE
+        self._orig_db     = server.DB_FILE
         self._orig_scores = server.SCORES
-        server.SCORES_FILE = self._path
+        server.DB_FILE = self._db_path
+        server.init_db()
         server.SCORES = {}
 
     def tearDown(self):
-        server.SCORES_FILE = self._orig_file
-        server.SCORES = self._orig_scores
-        os.unlink(self._path)
+        server.DB_FILE = self._orig_db
+        server.SCORES  = self._orig_scores
+        os.unlink(self._db_path)
 
 
 def make_board():
@@ -234,17 +235,23 @@ class TestCFScoring(IsolatedScores):
     def test_player_win_awards_player_point(self):
         sess = self.finished_cf_session(winner="P")
         server.cf_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["connectfour"], {"player": 1, "hangman": 0})
+        sc = sess["guest_score"]["connectfour"]
+        self.assertEqual(sc["player"], 1)
+        self.assertEqual(sc["hangman"], 0)
 
     def test_computer_win_awards_hangman_point(self):
         sess = self.finished_cf_session(winner="C")
         server.cf_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["connectfour"], {"player": 0, "hangman": 1})
+        sc = sess["guest_score"]["connectfour"]
+        self.assertEqual(sc["player"], 0)
+        self.assertEqual(sc["hangman"], 1)
 
     def test_draw_awards_no_points(self):
         sess = self.finished_cf_session(winner="draw")
         server.cf_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["connectfour"], {"player": 0, "hangman": 0})
+        sc = sess["guest_score"]["connectfour"]
+        self.assertEqual(sc["player"], 0)
+        self.assertEqual(sc["hangman"], 0)
 
     def test_score_applied_exactly_once(self):
         sess = self.finished_cf_session(winner="P")

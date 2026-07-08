@@ -12,12 +12,18 @@ import test_hangman
 import test_tictactoe
 import test_rps
 import test_connectfour
+import test_simonsays
+import test_blackjack
+import test_wordle
 
 _MODULES = (
     test_hangman,
     test_tictactoe,
     test_rps,
     test_connectfour,
+    test_simonsays,
+    test_blackjack,
+    test_wordle,
 )
 
 

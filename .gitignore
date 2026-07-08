@@ -8,7 +8,11 @@ env/
 
 # Saved player scores and event log (runtime data — never commit)
 scores.json
+scores.json.migrated
 events.log
+
+# SQLite database (runtime data — never commit)
+game.db
 
 # Editor / OS
 .vscode/*.log

@@ -49,20 +49,21 @@ class ApiClient:
 
 
 class IsolatedScores(unittest.TestCase):
-    """Base class: redirect SCORES to a temp file and start from an empty map."""
+    """Base class: redirect SCORES to a temp DB and start from an empty map."""
 
     def setUp(self):
-        fd, self._path = tempfile.mkstemp(suffix=".json")
+        fd, self._db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        self._orig_file = server.SCORES_FILE
+        self._orig_db     = server.DB_FILE
         self._orig_scores = server.SCORES
-        server.SCORES_FILE = self._path
+        server.DB_FILE = self._db_path
+        server.init_db()
         server.SCORES = {}
 
     def tearDown(self):
-        server.SCORES_FILE = self._orig_file
-        server.SCORES = self._orig_scores
-        os.unlink(self._path)
+        server.DB_FILE = self._orig_db
+        server.SCORES  = self._orig_scores
+        os.unlink(self._db_path)
 
 
 class TestTTTGameLogic(unittest.TestCase):
@@ -260,6 +261,7 @@ class TestTTTApi(IsolatedScores):
 
     def test_draw_awards_no_points(self):
         c = self.client()
+        c.call("/ttt/new", {"level": "hard"})  # perfect minimax — X can only draw
         final = self.play_to_end(c)
         self.assertNotEqual(final["winner"], "X")
         if final["winner"] == "draw":

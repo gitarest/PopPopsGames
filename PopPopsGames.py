@@ -10,6 +10,7 @@ Open: http://localhost:8000
 
 import json
 import os
+import sqlite3
 import string
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -59,6 +60,11 @@ from blackjack import (
     stand as bj_stand,
     finalize as bj_finalize,
 )
+from wordle import (
+    new_game as wl_new_game,
+    game_state as wl_game_state,
+    guess as wl_guess,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -71,6 +77,7 @@ SESSIONS = {}
 # {name: {game_key: {"player": int, "hangman": int}}}
 SCORES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scores.json")
 LOG_FILE    = os.path.join(os.path.dirname(os.path.abspath(__file__)), "events.log")
+DB_FILE     = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game.db")
 
 
 def _denver_now():
@@ -113,49 +120,103 @@ def normalize_name(name):
     return name.strip()[:20].title()
 
 
-def load_scores():
-    """Load and return the name→score map, migrating old flat format if needed.
-
-    Old format: {name: {"player": N, "hangman": N}}
-    New format: {name: {"hangman": {"player": N, "hangman": N}, ...}}
-    Old entries are migrated to the "hangman" game key.
-    """
+def init_db():
+    """Create the scores table if needed; migrate scores.json on first run."""
     try:
-        with open(SCORES_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return {}
+        db = sqlite3.connect(DB_FILE)
+        db.execute("""CREATE TABLE IF NOT EXISTS scores (
+            player TEXT NOT NULL,
+            game   TEXT NOT NULL,
+            won    INTEGER NOT NULL DEFAULT 0,
+            lost   INTEGER NOT NULL DEFAULT 0,
+            best   INTEGER NOT NULL DEFAULT 0,
+            level  TEXT    NOT NULL DEFAULT '',
+            PRIMARY KEY (player, game))""")
+        db.commit()
+        if os.path.exists(SCORES_FILE):
+            try:
+                with open(SCORES_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                _migrate_scores_json(db, data)
+                os.rename(SCORES_FILE, SCORES_FILE + ".migrated")
+            except (OSError, ValueError):
+                pass
+        db.close()
+    except sqlite3.DatabaseError:
+        pass
+
+
+def _migrate_scores_json(db, data):
+    """Insert scores.json data into the DB (one-time migration on first startup)."""
     if not isinstance(data, dict):
-        return {}
-    result = {}
+        return
     for name, val in data.items():
         key = normalize_name(str(name))
         if not key or not isinstance(val, dict):
             continue
-        entry = result.setdefault(key, {})
         if any(isinstance(v, int) for v in val.values()):
-            # Old flat format — migrate to the "hangman" game key.
-            slot = entry.setdefault("hangman", {"player": 0, "hangman": 0})
-            slot["player"] += val.get("player", 0) if isinstance(val.get("player"), int) else 0
-            slot["hangman"] += val.get("hangman", 0) if isinstance(val.get("hangman"), int) else 0
-        else:
-            for game_key, game_scores in val.items():
-                if isinstance(game_scores, dict):
-                    slot = entry.setdefault(game_key, {"player": 0, "hangman": 0})
-                    slot["player"] += game_scores.get("player", 0)
-                    slot["hangman"] += game_scores.get("hangman", 0)
+            val = {"hangman": val}
+        for game_key, gs in val.items():
+            if not isinstance(gs, dict):
+                continue
+            db.execute(
+                """INSERT INTO scores (player, game, won, lost, best, level)
+                   VALUES (?,?,?,?,?,?)
+                   ON CONFLICT(player, game) DO UPDATE SET
+                       won=scores.won + excluded.won,
+                       lost=scores.lost + excluded.lost,
+                       best=MAX(scores.best, excluded.best),
+                       level=CASE WHEN excluded.level != '' THEN excluded.level ELSE scores.level END""",
+                (key, game_key,
+                 gs.get("player", 0) if isinstance(gs.get("player"), int) else 0,
+                 gs.get("hangman", 0) if isinstance(gs.get("hangman"), int) else 0,
+                 gs.get("best", 0)   if isinstance(gs.get("best"),   int) else 0,
+                 gs.get("level", "") if isinstance(gs.get("level"),  str) else "")
+            )
+    db.commit()
+
+
+def load_scores():
+    """Return the name→score map from the DB."""
+    try:
+        db = sqlite3.connect(DB_FILE)
+        rows = db.execute(
+            "SELECT player, game, won, lost, best, level FROM scores"
+        ).fetchall()
+        db.close()
+    except sqlite3.DatabaseError:
+        return {}
+    result = {}
+    for player, game, won, lost, best, level in rows:
+        entry = result.setdefault(player, {})
+        entry[game] = {"player": won, "hangman": lost,
+                       "best": best, "level": level}
     return result
 
 
 def save_scores():
-    """Write the in-memory SCORES map to disk (best effort)."""
+    """Write the in-memory SCORES map to DB (best effort, atomic UPSERT)."""
     try:
-        with open(SCORES_FILE, "w", encoding="utf-8") as f:
-            json.dump(SCORES, f, indent=2)
-    except OSError:
+        db = sqlite3.connect(DB_FILE)
+        for player, games in SCORES.items():
+            for game, s in games.items():
+                db.execute(
+                    """INSERT INTO scores (player, game, won, lost, best, level)
+                       VALUES (?,?,?,?,?,?)
+                       ON CONFLICT(player, game) DO UPDATE SET
+                           won=excluded.won, lost=excluded.lost,
+                           best=excluded.best, level=excluded.level""",
+                    (player, game,
+                     s.get("player", 0), s.get("hangman", 0),
+                     s.get("best",   0), s.get("level",   ""))
+                )
+        db.commit()
+        db.close()
+    except sqlite3.DatabaseError:
         pass
 
 
+init_db()
 SCORES = load_scores()
 
 
@@ -388,6 +449,38 @@ def bj_build_payload(session, ip=None):
     }
 
 
+def wl_apply_score(session, ip=None):
+    """Award Wordle points exactly once per completed game."""
+    game = session["wl_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "wordle")
+    if game["phase"] == "won":
+        pts = 7 - len(game["guesses"])  # 6 pts for 1-guess win, 1 pt for 6-guess win
+        score["player"] += pts
+        log_event(ip, session["name"], "wordle", f"win:{len(game['guesses'])}_guesses")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "wordle", "loss")
+    game["scored"] = True
+    if session["name"]:
+        save_scores()
+
+
+def wl_build_payload(session, ip=None):
+    """Score any finished Wordle game and build the full client payload."""
+    if "wl_game" not in session:
+        session["wl_game"] = wl_new_game()
+    wl_apply_score(session, ip)
+    return {
+        **wl_game_state(session["wl_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "wordle"),
+        "total_score": total_score(session),
+        "names":       sorted(SCORES.keys()),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -427,6 +520,7 @@ def new_session():
         "cf_game": cf_new_game(),
         "ss_game": ss_new_game(),
         "bj_game": bj_new_game(),
+        "wl_game": wl_new_game(),
         "name": None,
         "guest_score": {},  # {game_key: {"player": N, "hangman": N}}
     }
@@ -489,7 +583,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -498,7 +592,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -541,7 +635,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/blackjack/state":
             sid, session, is_new = self.get_session()
             self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/"):
+        elif self.path == "/wordle/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -586,6 +683,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_bj_stand()
         elif self.path == "/blackjack/finalize":
             self.handle_bj_finalize()
+        elif self.path == "/wordle/new":
+            self.handle_wl_new()
+        elif self.path == "/wordle/guess":
+            self.handle_wl_guess()
         else:
             self.send_error(404, "Not found")
 
@@ -840,6 +941,27 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["bj_game"] = bj_new_game()
         bj_finalize(session["bj_game"])
         self.send_json(bj_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_wl_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        session["wl_game"] = wl_new_game()
+        session["wl_game"]["start_logged"] = True
+        log_event(ip, session["name"], "wordle", "start")
+        self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_wl_guess(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "wl_game" not in session:
+            session["wl_game"] = wl_new_game()
+        data = self.read_json_body()
+        word = str(data.get("word", "")).strip().upper()
+        if not session["wl_game"].get("start_logged"):
+            log_event(ip, session["name"], "wordle", "start")
+            session["wl_game"]["start_logged"] = True
+        wl_guess(session["wl_game"], word)
+        self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

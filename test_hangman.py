@@ -16,6 +16,7 @@ temp file so the real scores.json is never touched.
 import http.cookiejar
 import json
 import os
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -60,20 +61,21 @@ class ApiClient:
 
 
 class IsolatedScores(unittest.TestCase):
-    """Base class: redirect SCORES to a temp file and start from an empty map."""
+    """Base class: redirect SCORES to a temp DB and start from an empty map."""
 
     def setUp(self):
-        fd, self._path = tempfile.mkstemp(suffix=".json")
+        fd, self._db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
-        self._orig_file = server.SCORES_FILE
+        self._orig_db     = server.DB_FILE
         self._orig_scores = server.SCORES
-        server.SCORES_FILE = self._path
+        server.DB_FILE = self._db_path
+        server.init_db()
         server.SCORES = {}
 
     def tearDown(self):
-        server.SCORES_FILE = self._orig_file
-        server.SCORES = self._orig_scores
-        os.unlink(self._path)
+        server.DB_FILE = self._orig_db
+        server.SCORES  = self._orig_scores
+        os.unlink(self._db_path)
 
     @staticmethod
     def finished_session(name=None, level="medium", won=True):
@@ -165,14 +167,16 @@ class TestScoring(IsolatedScores):
         self.assertEqual(server.normalize_name(""), "")
 
     def test_load_scores_merges_case_only_duplicates(self):
-        with open(self._path, "w", encoding="utf-8") as f:
-            json.dump(
-                {"Hunter": {"player": 1, "hangman": 2},
-                 "hunter": {"player": 3, "hangman": 4}}, f,
-            )
+        data = {"Hunter": {"player": 1, "hangman": 2},
+                "hunter": {"player": 3, "hangman": 4}}
+        db = sqlite3.connect(server.DB_FILE)
+        server._migrate_scores_json(db, data)
+        db.close()
         loaded = server.load_scores()
         self.assertEqual(list(loaded), ["Hunter"])
-        self.assertEqual(loaded["Hunter"]["hangman"], {"player": 4, "hangman": 6})
+        gs = loaded["Hunter"]["hangman"]
+        self.assertEqual(gs["player"], 4)
+        self.assertEqual(gs["hangman"], 6)
 
 
 class TestHangmanApi(IsolatedScores):
