@@ -227,22 +227,18 @@ SCORES = load_scores()
 def active_score(session, game_key):
     """The per-game score record this session writes to.
 
-    Named players use SCORES[name][game_key]; guests use their session dict.
+    Named players use SCORES[name][game_key]; guests use SCORES["Guest"][game_key].
     """
-    name = session["name"]
-    if name:
-        return SCORES.setdefault(name, {}).setdefault(
-            game_key, {"player": 0, "hangman": 0}
-        )
-    return session["guest_score"].setdefault(
+    name = session["name"] or "Guest"
+    return SCORES.setdefault(name, {}).setdefault(
         game_key, {"player": 0, "hangman": 0}
     )
 
 
 def total_score(session):
     """Sum of player/hangman points across all games for this session."""
-    name = session["name"]
-    games = SCORES.get(name, {}) if name else session["guest_score"]
+    name = session["name"] or "Guest"
+    games = SCORES.get(name, {})
     totals = {"player": 0, "hangman": 0}
     for gs in games.values():
         if isinstance(gs, dict):
@@ -267,8 +263,7 @@ def apply_score(session, ip=None):
         score["hangman"] += 1
         log_event(ip, session["name"], "hangman", "loss")
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def ttt_apply_score(session, ip=None):
@@ -305,8 +300,7 @@ def rps_apply_score(session, ip=None):
     else:
         log_event(ip, session["name"], "rps", "draw")
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def rps_build_payload(session, ip=None):
@@ -319,7 +313,7 @@ def rps_build_payload(session, ip=None):
         "name": session["name"],
         "score": active_score(session, "rps"),
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -342,8 +336,7 @@ def cf_apply_score(session, ip=None):
     score["level"] = game.get("level", CF_DEFAULT_LEVEL)
     score["speed"] = game.get("speed", None)
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def cf_build_payload(session, ip=None):
@@ -359,7 +352,7 @@ def cf_build_payload(session, ip=None):
         "name": session["name"],
         "score": score,
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -379,8 +372,7 @@ def ss_apply_score(session, ip=None):
     score["level"] = game.get("level", "easy")
     log_event(ip, session["name"], "simonsays", f"over:rounds={rounds}")
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def ss_build_payload(session, ip=None):
@@ -396,7 +388,7 @@ def ss_build_payload(session, ip=None):
         "name": session["name"],
         "score": score,
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -416,8 +408,7 @@ def bj_apply_score(session, ip=None):
     else:
         log_event(ip, session["name"], "blackjack", f"deck_tie:p{pw}-c{cw}")
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def bj_build_payload(session, ip=None):
@@ -445,7 +436,7 @@ def bj_build_payload(session, ip=None):
         "name": session["name"],
         "score": active_score(session, "blackjack"),
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -463,8 +454,7 @@ def wl_apply_score(session, ip=None):
         score["hangman"] += 1
         log_event(ip, session["name"], "wordle", "loss")
     game["scored"] = True
-    if session["name"]:
-        save_scores()
+    save_scores()
 
 
 def wl_build_payload(session, ip=None):
@@ -489,7 +479,7 @@ def build_payload(session, ip=None):
         "name": session["name"],
         "score": active_score(session, "hangman"),
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -503,7 +493,7 @@ def ttt_build_payload(session, ip=None):
         "name": session["name"],
         "score": active_score(session, "tictactoe"),
         "total_score": total_score(session),
-        "names": sorted(SCORES.keys()),
+        "names": sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -522,7 +512,6 @@ def new_session():
         "bj_game": bj_new_game(),
         "wl_game": wl_new_game(),
         "name": None,
-        "guest_score": {},  # {game_key: {"player": N, "hangman": N}}
     }
 
 
@@ -737,10 +726,13 @@ class HangmanHandler(BaseHTTPRequestHandler):
         ip = self.get_client_ip()
         data = self.read_json_body()
         name = normalize_name(str(data.get("name", "")))
-        session["name"] = name or None
-        if name and name not in SCORES:
-            SCORES[name] = {}
-            save_scores()
+        if name and name != "Guest":
+            session["name"] = name
+            if name not in SCORES:
+                SCORES[name] = {}
+                save_scores()
+        else:
+            session["name"] = None
         log_event(ip, session["name"], "session", "name_set")
         self.send_json(build_payload(session, ip), sid=sid, set_cookie=is_new)
 

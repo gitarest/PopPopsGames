@@ -230,19 +230,19 @@ class TestBJScoring(IsolatedScores):
     def test_player_wins_deck_scores_player(self):
         sess = self._make_deck_over(player_wins=4, computer_wins=2)
         server.bj_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["blackjack"]["player"], 1)
-        self.assertEqual(sess["guest_score"]["blackjack"]["hangman"], 0)
+        self.assertEqual(server.SCORES["Guest"]["blackjack"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["blackjack"]["hangman"], 0)
 
     def test_computer_wins_deck_scores_computer(self):
         sess = self._make_deck_over(player_wins=2, computer_wins=5)
         server.bj_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["blackjack"]["hangman"], 1)
-        self.assertEqual(sess["guest_score"]["blackjack"]["player"], 0)
+        self.assertEqual(server.SCORES["Guest"]["blackjack"]["hangman"], 1)
+        self.assertEqual(server.SCORES["Guest"]["blackjack"]["player"], 0)
 
     def test_tied_deck_scores_neither(self):
         sess = self._make_deck_over(player_wins=3, computer_wins=3)
         server.bj_apply_score(sess)
-        score = sess["guest_score"]["blackjack"]
+        score = server.SCORES["Guest"]["blackjack"]
         self.assertEqual(score["player"], 0)
         self.assertEqual(score["hangman"], 0)
 
@@ -250,7 +250,7 @@ class TestBJScoring(IsolatedScores):
         sess = self._make_deck_over(player_wins=3, computer_wins=1)
         server.bj_apply_score(sess)
         server.bj_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["blackjack"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["blackjack"]["player"], 1)
 
     def test_not_over_does_not_score(self):
         sess = server.new_session()
@@ -258,7 +258,7 @@ class TestBJScoring(IsolatedScores):
         g["phase"] = "player"
         sess["bj_game"] = g
         server.bj_apply_score(sess)
-        self.assertEqual(sess["guest_score"], {})
+        self.assertNotIn("blackjack", server.SCORES.get("Guest", {}))
 
     def test_named_player_score_persists(self):
         sess = self._make_deck_over(name="Kai", player_wins=4, computer_wins=1)
@@ -266,10 +266,12 @@ class TestBJScoring(IsolatedScores):
         loaded = server.load_scores()
         self.assertEqual(loaded["Kai"]["blackjack"]["player"], 1)
 
-    def test_guest_score_not_written_to_disk(self):
+    def test_guest_score_written_to_db(self):
         sess = self._make_deck_over(player_wins=3, computer_wins=1)
         server.bj_apply_score(sess)
-        self.assertEqual(server.load_scores(), {})
+        loaded = server.load_scores()
+        self.assertIn("Guest", loaded)
+        self.assertEqual(loaded["Guest"]["blackjack"]["player"], 1)
 
 
 # ---------------------------------------------------------------------------

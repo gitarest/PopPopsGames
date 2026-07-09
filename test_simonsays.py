@@ -173,12 +173,12 @@ class TestSSScoring(IsolatedScores):
     def test_player_gets_rounds_completed(self):
         sess = self._finished_ss(rounds=5)
         server.ss_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["simonsays"]["player"], 5)
+        self.assertEqual(server.SCORES["Guest"]["simonsays"]["player"], 5)
 
     def test_computer_always_gets_one(self):
         sess = self._finished_ss(rounds=0)
         server.ss_apply_score(sess)
-        score = sess["guest_score"]["simonsays"]
+        score = server.SCORES["Guest"]["simonsays"]
         self.assertEqual(score["hangman"], 1)
         self.assertEqual(score["player"], 0)
 
@@ -186,12 +186,12 @@ class TestSSScoring(IsolatedScores):
         sess = self._finished_ss(rounds=4)
         server.ss_apply_score(sess)
         server.ss_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["simonsays"]["player"], 4)
+        self.assertEqual(server.SCORES["Guest"]["simonsays"]["player"], 4)
 
     def test_best_initializes_and_updates(self):
         sess = self._finished_ss(rounds=3)
         server.ss_apply_score(sess)
-        score = sess["guest_score"]["simonsays"]
+        score = server.SCORES["Guest"]["simonsays"]
         self.assertEqual(score["best"], 3)
 
     def test_best_does_not_decrease(self):
@@ -213,9 +213,11 @@ class TestSSScoring(IsolatedScores):
         server.ss_apply_score(sess)
         self.assertEqual(server.SCORES["Kai"]["simonsays"]["level"], "hard")
 
-    def test_guest_score_not_written_to_disk(self):
+    def test_guest_score_written_to_db(self):
         server.ss_apply_score(self._finished_ss(name=None, rounds=3))
-        self.assertEqual(server.load_scores(), {})
+        loaded = server.load_scores()
+        self.assertIn("Guest", loaded)
+        self.assertEqual(loaded["Guest"]["simonsays"]["player"], 3)
 
     def test_named_score_persists_to_disk(self):
         sess = self._finished_ss(name="Nia", rounds=5, level="medium")
@@ -229,7 +231,7 @@ class TestSSScoring(IsolatedScores):
         g["phase"] = "play"
         sess["ss_game"] = g
         server.ss_apply_score(sess)
-        self.assertEqual(sess["guest_score"], {})
+        self.assertNotIn("simonsays", server.SCORES.get("Guest", {}))
 
 
 # ---------------------------------------------------------------------------

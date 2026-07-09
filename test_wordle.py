@@ -204,29 +204,29 @@ class TestWLScoring(IsolatedScores):
     def test_win_one_guess_gives_six_points(self):
         sess = self._make_won(attempts=1)
         server.wl_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["wordle"]["player"], 6)
+        self.assertEqual(server.SCORES["Guest"]["wordle"]["player"], 6)
 
     def test_win_six_guesses_gives_one_point(self):
         sess = self._make_won(attempts=6)
         server.wl_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["wordle"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["wordle"]["player"], 1)
 
     def test_loss_gives_computer_one_point(self):
         sess = self._make_lost()
         server.wl_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["wordle"]["hangman"], 1)
-        self.assertEqual(sess["guest_score"]["wordle"]["player"], 0)
+        self.assertEqual(server.SCORES["Guest"]["wordle"]["hangman"], 1)
+        self.assertEqual(server.SCORES["Guest"]["wordle"]["player"], 0)
 
     def test_apply_score_fires_once(self):
         sess = self._make_won(attempts=1)
         server.wl_apply_score(sess)
         server.wl_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["wordle"]["player"], 6)
+        self.assertEqual(server.SCORES["Guest"]["wordle"]["player"], 6)
 
     def test_not_over_does_not_score(self):
         sess = server.new_session()
         server.wl_apply_score(sess)
-        self.assertEqual(sess["guest_score"], {})
+        self.assertNotIn("wordle", server.SCORES.get("Guest", {}))
 
     def test_named_player_score_persists(self):
         sess = self._make_won(name="Ada", attempts=3)

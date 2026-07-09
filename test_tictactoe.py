@@ -167,23 +167,23 @@ class TestTTTScoring(IsolatedScores):
     def test_o_win_awards_hangman_point(self):
         sess = self.finished_ttt_session(winner="O")
         server.ttt_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["tictactoe"], {"player": 0, "hangman": 1})
+        self.assertEqual(server.SCORES["Guest"]["tictactoe"], {"player": 0, "hangman": 1})
 
     def test_x_win_awards_player_point(self):
         sess = self.finished_ttt_session(winner="X")
         server.ttt_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["tictactoe"], {"player": 1, "hangman": 0})
+        self.assertEqual(server.SCORES["Guest"]["tictactoe"], {"player": 1, "hangman": 0})
 
     def test_draw_awards_no_points(self):
         sess = self.finished_ttt_session(winner="draw")
         server.ttt_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["tictactoe"], {"player": 0, "hangman": 0})
+        self.assertEqual(server.SCORES["Guest"]["tictactoe"], {"player": 0, "hangman": 0})
 
     def test_score_applied_exactly_once(self):
         sess = self.finished_ttt_session(winner="O")
         server.ttt_apply_score(sess)
         server.ttt_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["tictactoe"]["hangman"], 1)
+        self.assertEqual(server.SCORES["Guest"]["tictactoe"]["hangman"], 1)
 
     def test_named_score_persists(self):
         sess = self.finished_ttt_session(name="Alice", winner="O")

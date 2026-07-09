@@ -235,21 +235,21 @@ class TestCFScoring(IsolatedScores):
     def test_player_win_awards_player_point(self):
         sess = self.finished_cf_session(winner="P")
         server.cf_apply_score(sess)
-        sc = sess["guest_score"]["connectfour"]
+        sc = server.SCORES["Guest"]["connectfour"]
         self.assertEqual(sc["player"], 1)
         self.assertEqual(sc["hangman"], 0)
 
     def test_computer_win_awards_hangman_point(self):
         sess = self.finished_cf_session(winner="C")
         server.cf_apply_score(sess)
-        sc = sess["guest_score"]["connectfour"]
+        sc = server.SCORES["Guest"]["connectfour"]
         self.assertEqual(sc["player"], 0)
         self.assertEqual(sc["hangman"], 1)
 
     def test_draw_awards_no_points(self):
         sess = self.finished_cf_session(winner="draw")
         server.cf_apply_score(sess)
-        sc = sess["guest_score"]["connectfour"]
+        sc = server.SCORES["Guest"]["connectfour"]
         self.assertEqual(sc["player"], 0)
         self.assertEqual(sc["hangman"], 0)
 
@@ -257,12 +257,12 @@ class TestCFScoring(IsolatedScores):
         sess = self.finished_cf_session(winner="P")
         server.cf_apply_score(sess)
         server.cf_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["connectfour"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["connectfour"]["player"], 1)
 
     def test_incomplete_game_not_scored(self):
         sess = server.new_session()
         server.cf_apply_score(sess)
-        self.assertNotIn("connectfour", sess["guest_score"])
+        self.assertNotIn("connectfour", server.SCORES.get("Guest", {}))
 
     def test_named_score_persists(self):
         sess = self.finished_cf_session(name="Alice", winner="P")

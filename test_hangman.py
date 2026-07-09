@@ -132,18 +132,18 @@ class TestScoring(IsolatedScores):
     def test_guest_win_awards_player_points_by_level(self):
         sess = self.finished_session(level="medium", won=True)
         server.apply_score(sess)
-        self.assertEqual(sess["guest_score"]["hangman"], {"player": 2, "hangman": 0})
+        self.assertEqual(server.SCORES["Guest"]["hangman"], {"player": 2, "hangman": 0})
 
     def test_loss_awards_hangman_one_point(self):
         sess = self.finished_session(won=False)
         server.apply_score(sess)
-        self.assertEqual(sess["guest_score"]["hangman"], {"player": 0, "hangman": 1})
+        self.assertEqual(server.SCORES["Guest"]["hangman"], {"player": 0, "hangman": 1})
 
     def test_score_is_applied_exactly_once(self):
         sess = self.finished_session(level="easy", won=True)
         server.apply_score(sess)
         server.apply_score(sess)
-        self.assertEqual(sess["guest_score"]["hangman"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["hangman"]["player"], 1)
 
     def test_named_score_persists_and_reloads_from_disk(self):
         sess = self.finished_session(name="Alice", level="hard", won=True)
@@ -151,9 +151,11 @@ class TestScoring(IsolatedScores):
         self.assertEqual(server.SCORES["Alice"]["hangman"]["player"], 3)
         self.assertEqual(server.load_scores()["Alice"]["hangman"]["player"], 3)
 
-    def test_guest_score_is_never_written_to_disk(self):
-        server.apply_score(self.finished_session(name=None, won=True))
-        self.assertEqual(server.load_scores(), {})
+    def test_guest_score_written_to_db(self):
+        server.apply_score(self.finished_session(name=None, level="medium", won=True))
+        loaded = server.load_scores()
+        self.assertIn("Guest", loaded)
+        self.assertEqual(loaded["Guest"]["hangman"]["player"], 2)
 
     def test_build_payload_lists_known_names_sorted(self):
         for n in ["Cara", "Alice", "Bob"]:

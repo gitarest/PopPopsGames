@@ -130,23 +130,23 @@ class TestRPSScoring(IsolatedScores):
     def test_win_awards_player_point(self):
         sess = self.finished_rps_session(result="win")
         server.rps_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["rps"], {"player": 1, "hangman": 0})
+        self.assertEqual(server.SCORES["Guest"]["rps"], {"player": 1, "hangman": 0})
 
     def test_loss_awards_computer_point(self):
         sess = self.finished_rps_session(result="loss")
         server.rps_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["rps"], {"player": 0, "hangman": 1})
+        self.assertEqual(server.SCORES["Guest"]["rps"], {"player": 0, "hangman": 1})
 
     def test_tie_awards_no_points(self):
         sess = self.finished_rps_session(result="tie")
         server.rps_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["rps"], {"player": 0, "hangman": 0})
+        self.assertEqual(server.SCORES["Guest"]["rps"], {"player": 0, "hangman": 0})
 
     def test_score_applied_exactly_once(self):
         sess = self.finished_rps_session(result="win")
         server.rps_apply_score(sess)
         server.rps_apply_score(sess)
-        self.assertEqual(sess["guest_score"]["rps"]["player"], 1)
+        self.assertEqual(server.SCORES["Guest"]["rps"]["player"], 1)
 
     def test_named_score_persists(self):
         sess = self.finished_rps_session(name="Alice", result="win")
