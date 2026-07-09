@@ -15,6 +15,7 @@ import test_connectfour
 import test_simonsays
 import test_blackjack
 import test_wordle
+import test_memory
 
 _MODULES = (
     test_hangman,
@@ -24,6 +25,7 @@ _MODULES = (
     test_simonsays,
     test_blackjack,
     test_wordle,
+    test_memory,
 )
 
 

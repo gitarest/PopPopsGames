@@ -65,6 +65,12 @@ from wordle import (
     game_state as wl_game_state,
     guess as wl_guess,
 )
+from memory import (
+    new_game as memory_new_game,
+    game_state as memory_game_state,
+    flip as memory_flip,
+    clear_mismatch as memory_clear,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -467,7 +473,37 @@ def wl_build_payload(session, ip=None):
         "name":        session["name"],
         "score":       active_score(session, "wordle"),
         "total_score": total_score(session),
-        "names":       sorted(SCORES.keys()),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
+def memory_apply_score(session, ip=None):
+    """Award Memory points exactly once per completed game."""
+    game = session["memory_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "memory")
+    if game["moves"] <= game["par"]:
+        score["player"] += 1
+        log_event(ip, session["name"], "memory", f"win:{game['moves']}_moves")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "memory", f"loss:{game['moves']}_moves")
+    game["scored"] = True
+    save_scores()
+
+
+def memory_build_payload(session, ip=None):
+    """Score any finished Memory game and build the full client payload."""
+    if "memory_game" not in session:
+        session["memory_game"] = memory_new_game()
+    memory_apply_score(session, ip)
+    return {
+        **memory_game_state(session["memory_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "memory"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
     }
 
 
@@ -511,6 +547,7 @@ def new_session():
         "ss_game": ss_new_game(),
         "bj_game": bj_new_game(),
         "wl_game": wl_new_game(),
+        "memory_game": memory_new_game(),
         "name": None,
     }
 
@@ -572,7 +609,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -581,7 +618,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -627,7 +664,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/wordle/state":
             sid, session, is_new = self.get_session()
             self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/"):
+        elif self.path == "/memory/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -676,6 +716,12 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_wl_new()
         elif self.path == "/wordle/guess":
             self.handle_wl_guess()
+        elif self.path == "/memory/new":
+            self.handle_memory_new()
+        elif self.path == "/memory/flip":
+            self.handle_memory_flip()
+        elif self.path == "/memory/clear":
+            self.handle_memory_clear()
         else:
             self.send_error(404, "Not found")
 
@@ -954,6 +1000,42 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["wl_game"]["start_logged"] = True
         wl_guess(session["wl_game"], word)
         self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_memory_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        theme = str(data.get("theme", "")).strip().lower()
+        level = str(data.get("level", "")).strip().lower()
+        session["memory_game"] = memory_new_game(
+            theme or session["memory_game"].get("theme"),
+            level or session["memory_game"].get("level"),
+        )
+        session["memory_game"]["start_logged"] = True
+        log_event(ip, session["name"], "memory", f"start:{session['memory_game']['theme']}:{session['memory_game']['level']}")
+        self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_memory_flip(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "memory_game" not in session:
+            session["memory_game"] = memory_new_game()
+        data = self.read_json_body()
+        index = data.get("index")
+        if not session["memory_game"].get("start_logged"):
+            log_event(ip, session["name"], "memory", f"start:{session['memory_game']['theme']}")
+            session["memory_game"]["start_logged"] = True
+        if isinstance(index, int):
+            memory_flip(session["memory_game"], index)
+        self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_memory_clear(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "memory_game" not in session:
+            session["memory_game"] = memory_new_game()
+        memory_clear(session["memory_game"])
+        self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))
