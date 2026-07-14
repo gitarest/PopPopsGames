@@ -16,6 +16,8 @@ import test_simonsays
 import test_blackjack
 import test_wordle
 import test_memory
+import test_wordscramble
+import test_tetris
 
 _MODULES = (
     test_hangman,
@@ -26,6 +28,8 @@ _MODULES = (
     test_blackjack,
     test_wordle,
     test_memory,
+    test_wordscramble,
+    test_tetris,
 )
 
 

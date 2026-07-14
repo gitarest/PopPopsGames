@@ -1,0 +1,253 @@
+:root {
+  --bg: #1e293b;
+  --panel: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --correct: #4ade80;
+  --wrong: #f87171;
+  --key: #334155;
+  --key-hover: #475569;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 12px 10px 20px;
+}
+
+.game {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Score bar ---------- */
+.score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 16px;
+  width: 100%;
+}
+.score-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.score-side:last-child { justify-content: flex-end; }
+.score-label { color: var(--muted); font-size: 0.85rem; }
+.score-num   { font-size: 1.4rem; font-weight: 700; min-width: 1.5ch; text-align: center; }
+.score-vs    { color: var(--muted); font-size: 0.8rem; }
+
+.name-btn {
+  background: none;
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+}
+.name-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.name-input {
+  background: var(--key);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  width: 100px;
+}
+
+.name-list {
+  background: var(--panel);
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  list-style: none;
+  padding: 4px 0;
+  position: absolute;
+  z-index: 10;
+  min-width: 120px;
+}
+.name-list li {
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+}
+.name-list li:hover { background: var(--key); }
+
+/* ---------- Level toggle ---------- */
+.level-toggle {
+  display: flex;
+  gap: 6px;
+}
+.level-btn {
+  background: var(--key);
+  border: 2px solid transparent;
+  border-radius: 20px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 5px 14px;
+  text-transform: capitalize;
+  transition: border-color 0.15s;
+}
+.level-btn:hover  { border-color: var(--muted); }
+.level-btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- Play area ---------- */
+.play-area {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  grid-template-rows: repeat(20, 1fr);
+  gap: 1px;
+  width: 240px;
+  height: 480px;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.cell {
+  background: #0b1220;
+  border-radius: 2px;
+}
+
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 80px;
+}
+
+.panel-block {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
+.panel-label {
+  color: var(--muted);
+  display: block;
+  font-size: 0.7rem;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.panel-num {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.next-piece {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 1px;
+  height: 60px;
+  margin: 0 auto;
+  width: 60px;
+}
+
+.next-piece .cell {
+  background: #0b1220;
+  border-radius: 2px;
+}
+
+/* ---------- Result banner ---------- */
+.result {
+  background: var(--panel);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  text-align: center;
+  width: 100%;
+}
+.result.loss { color: var(--wrong); }
+
+/* ---------- Controls ---------- */
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.control-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.ctrl-btn {
+  background: var(--key);
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.3rem;
+  padding: 12px 20px;
+  transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.ctrl-btn:hover  { background: var(--key-hover); }
+.ctrl-btn:active { transform: scale(0.95); }
+
+.ctrl-wide {
+  flex: 1;
+  font-size: 0.95rem;
+  max-width: 180px;
+}
+
+/* ---------- Buttons ---------- */
+.new-game {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #0f172a;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 32px;
+}
+.new-game:hover  { opacity: 0.9; }
+.new-game:active { transform: scale(0.97); }
+
+/* ---------- Home logo ---------- */
+.home-btn {
+  display: block;
+  margin: 1.5rem auto 0;
+  max-width: 220px;
+}
+.home-btn img { display: block; width: 100%; }
+.home-btn:hover { opacity: 0.8; }

@@ -71,6 +71,19 @@ from memory import (
     flip as memory_flip,
     clear_mismatch as memory_clear,
 )
+from wordscramble import (
+    new_game as ws_new_game,
+    game_state as ws_game_state,
+    place as ws_place,
+    remove as ws_remove,
+    clear_wrong as ws_clear,
+)
+from tetris import (
+    new_game as tet_new_game,
+    move as tet_move,
+    tick as tet_tick,
+    game_state as tet_game_state,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -507,6 +520,68 @@ def memory_build_payload(session, ip=None):
     }
 
 
+def ws_apply_score(session, ip=None):
+    """Award Word Scramble points exactly once per completed game."""
+    game = session["ws_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "wordscramble")
+    if game["won"]:
+        score["player"] += level_points(game["level"])
+        log_event(ip, session["name"], "wordscramble", f"win:{game['level']}")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "wordscramble", "loss")
+    game["scored"] = True
+    save_scores()
+
+
+def ws_build_payload(session, ip=None):
+    """Score any finished Word Scramble game and build the full client payload."""
+    if "ws_game" not in session:
+        session["ws_game"] = ws_new_game()
+    ws_apply_score(session, ip)
+    return {
+        **ws_game_state(session["ws_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "wordscramble"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
+def tet_apply_score(session, ip=None):
+    """Award Tetris points exactly once per completed game."""
+    game = session["tet_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "tetris")
+    score.setdefault("best", 0)
+    score.setdefault("level", "easy")
+    score["player"] += game["level_num"]
+    score["hangman"] += 1
+    if game["level_num"] > score["best"]:
+        score["best"] = game["level_num"]
+    score["level"] = game["level"]
+    log_event(ip, session["name"], "tetris", f"over:level={game['level_num']}:lines={game['lines']}")
+    game["scored"] = True
+    save_scores()
+
+
+def tet_build_payload(session, ip=None):
+    """Score any finished Tetris game and build the full client payload."""
+    if "tet_game" not in session:
+        session["tet_game"] = tet_new_game()
+    tet_apply_score(session, ip)
+    return {
+        **tet_game_state(session["tet_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "tetris"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -548,6 +623,8 @@ def new_session():
         "bj_game": bj_new_game(),
         "wl_game": wl_new_game(),
         "memory_game": memory_new_game(),
+        "ws_game": ws_new_game(),
+        "tet_game": tet_new_game(),
         "name": None,
     }
 
@@ -609,7 +686,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -618,7 +695,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -667,7 +744,13 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/memory/state":
             sid, session, is_new = self.get_session()
             self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/"):
+        elif self.path == "/wordscramble/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(ws_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path == "/tetris/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -722,6 +805,20 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_memory_flip()
         elif self.path == "/memory/clear":
             self.handle_memory_clear()
+        elif self.path == "/wordscramble/new":
+            self.handle_ws_new()
+        elif self.path == "/wordscramble/place":
+            self.handle_ws_place()
+        elif self.path == "/wordscramble/remove":
+            self.handle_ws_remove()
+        elif self.path == "/wordscramble/clear":
+            self.handle_ws_clear()
+        elif self.path == "/tetris/new":
+            self.handle_tetris_new()
+        elif self.path == "/tetris/move":
+            self.handle_tetris_move()
+        elif self.path == "/tetris/tick":
+            self.handle_tetris_tick()
         else:
             self.send_error(404, "Not found")
 
@@ -1036,6 +1133,81 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["memory_game"] = memory_new_game()
         memory_clear(session["memory_game"])
         self.send_json(memory_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ws_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["ws_game"].get("level")
+        session["ws_game"] = ws_new_game(level)
+        session["ws_game"]["start_logged"] = True
+        log_event(ip, session["name"], "wordscramble", f"start:{session['ws_game']['level']}")
+        self.send_json(ws_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ws_place(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ws_game" not in session:
+            session["ws_game"] = ws_new_game()
+        data = self.read_json_body()
+        index = data.get("index")
+        if not session["ws_game"].get("start_logged"):
+            log_event(ip, session["name"], "wordscramble", f"start:{session['ws_game']['level']}")
+            session["ws_game"]["start_logged"] = True
+        if isinstance(index, int):
+            ws_place(session["ws_game"], index)
+        self.send_json(ws_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ws_remove(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ws_game" not in session:
+            session["ws_game"] = ws_new_game()
+        data = self.read_json_body()
+        index = data.get("index")
+        if isinstance(index, int):
+            ws_remove(session["ws_game"], index)
+        self.send_json(ws_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ws_clear(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ws_game" not in session:
+            session["ws_game"] = ws_new_game()
+        ws_clear(session["ws_game"])
+        self.send_json(ws_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_tetris_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["tet_game"].get("level")
+        session["tet_game"] = tet_new_game(level)
+        session["tet_game"]["start_logged"] = True
+        log_event(ip, session["name"], "tetris", f"start:{session['tet_game']['level']}")
+        self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_tetris_move(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "tet_game" not in session:
+            session["tet_game"] = tet_new_game()
+        data = self.read_json_body()
+        action = str(data.get("action", "")).strip().lower()
+        if not session["tet_game"].get("start_logged"):
+            log_event(ip, session["name"], "tetris", f"start:{session['tet_game']['level']}")
+            session["tet_game"]["start_logged"] = True
+        if action in ("left", "right", "rotate", "soft_drop", "hard_drop"):
+            tet_move(session["tet_game"], action)
+        self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_tetris_tick(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "tet_game" not in session:
+            session["tet_game"] = tet_new_game()
+        tet_tick(session["tet_game"])
+        self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

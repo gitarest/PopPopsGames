@@ -1,0 +1,232 @@
+:root {
+  --bg: #1e293b;
+  --panel: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --correct: #4ade80;
+  --wrong: #f87171;
+  --key: #334155;
+  --key-hover: #475569;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 12px 10px 20px;
+}
+
+.game {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+/* ---------- Score bar ---------- */
+.score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 16px;
+  width: 100%;
+}
+.score-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.score-side:last-child { justify-content: flex-end; }
+.score-label { color: var(--muted); font-size: 0.85rem; }
+.score-num   { font-size: 1.4rem; font-weight: 700; min-width: 1.5ch; text-align: center; }
+.score-vs    { color: var(--muted); font-size: 0.8rem; }
+
+.name-btn {
+  background: none;
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+}
+.name-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.name-input {
+  background: var(--key);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  width: 100px;
+}
+
+.name-list {
+  background: var(--panel);
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  list-style: none;
+  padding: 4px 0;
+  position: absolute;
+  z-index: 10;
+  min-width: 120px;
+}
+.name-list li {
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+}
+.name-list li:hover { background: var(--key); }
+
+/* ---------- Level toggle ---------- */
+.level-toggle {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.level-btn {
+  background: var(--key);
+  border: 2px solid transparent;
+  border-radius: 20px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 5px 14px;
+  text-transform: capitalize;
+  transition: border-color 0.15s;
+}
+.level-btn:hover  { border-color: var(--muted); }
+.level-btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- Stats row ---------- */
+.stats {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.stats strong { color: var(--text); }
+
+/* ---------- Answer slots ---------- */
+.answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
+}
+
+.slot {
+  width: 44px;
+  height: 44px;
+  border: 2px dashed var(--key);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.slot.filled {
+  border-style: solid;
+  border-color: var(--accent);
+  background: #1d4ed8;
+  cursor: pointer;
+}
+
+.slot.wrong {
+  border-color: var(--wrong);
+  background: #7f1d1d;
+  animation: shake 0.3s ease;
+}
+
+.slot.won {
+  border-color: var(--correct);
+  background: #166534;
+}
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25%      { transform: translateX(-4px); }
+  75%      { transform: translateX(4px); }
+}
+
+/* ---------- Letter pool ---------- */
+.pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  width: 100%;
+}
+
+.tile {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 8px;
+  background: var(--key);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1.3rem;
+  font-weight: 700;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.tile:hover  { background: var(--key-hover); transform: scale(1.05); }
+.tile:active { transform: scale(0.95); }
+
+/* ---------- Result banner ---------- */
+.result {
+  background: var(--panel);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  text-align: center;
+  width: 100%;
+}
+.result.win  { color: var(--correct); }
+.result.loss { color: var(--wrong); }
+
+/* ---------- Buttons ---------- */
+.new-game {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #0f172a;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 32px;
+}
+.new-game:hover  { opacity: 0.9; }
+.new-game:active { transform: scale(0.97); }
+
+/* ---------- Home logo ---------- */
+.home-btn {
+  display: block;
+  margin: 1.5rem auto 0;
+  max-width: 220px;
+}
+.home-btn img { display: block; width: 100%; }
+.home-btn:hover { opacity: 0.8; }

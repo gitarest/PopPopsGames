@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Scramble — Pop Pop's Games</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="game">
+    <h1>Word Scramble</h1>
+
+    <div id="score" class="score" aria-label="Score">
+      <div class="score-side">
+        <button id="name-btn" class="score-label name-btn" aria-label="Set player name">Guest</button>
+        <input id="name-input" class="name-input" type="text" placeholder="Enter name…" autocomplete="off" hidden>
+        <ul id="name-list" class="name-list" hidden></ul>
+        <span id="score-player" class="score-num">0</span>
+      </div>
+      <span class="score-vs">vs</span>
+      <div class="score-side">
+        <span class="score-label">Computer</span>
+        <span id="score-hangman" class="score-num">0</span>
+      </div>
+    </div>
+
+    <div id="level-toggle" class="level-toggle" aria-label="Difficulty"></div>
+
+    <div class="stats">
+      <span>Wrong: <strong id="wrong">0</strong> / <strong id="max-wrong">5</strong></span>
+    </div>
+
+    <div id="answer" class="answer" aria-label="Your answer"></div>
+
+    <div id="pool" class="pool" aria-label="Letter tiles"></div>
+
+    <div id="result" class="result" hidden></div>
+
+    <button id="new-game" class="new-game">New Game</button>
+
+    <a href="/" class="home-btn" aria-label="Home">
+      <img src="/logo.png" alt="Pop Pop's Games">
+    </a>
+  </main>
+  <script src="script.js"></script>
+</body>
+</html>
