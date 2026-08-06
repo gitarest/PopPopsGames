@@ -13,7 +13,11 @@ const els = {
   nameInput:   document.getElementById("name-input"),
   nameList:    document.getElementById("name-list"),
   keyboard:    document.getElementById("keyboard"),
+  timer:       document.getElementById("timer"),
 };
+
+const timer = createGameTimer(els.timer);
+timer.armAutoStart();
 
 let state = null;
 let currentInput = [];   // letters typed into the current row
@@ -116,10 +120,12 @@ function render(s) {
   const statusEl = els.status;
   statusEl.className = "status";
   if (s.phase === "won") {
+    timer.stop();
     statusEl.textContent = `You got it in ${s.attempts} ${s.attempts === 1 ? "guess" : "guesses"}! 🎉`;
     statusEl.classList.add("win");
     currentInput = [];
   } else if (s.phase === "lost") {
+    timer.stop();
     statusEl.textContent = `The word was ${s.word}. Better luck next time!`;
     statusEl.classList.add("loss");
     currentInput = [];
@@ -223,8 +229,10 @@ document.addEventListener("keydown", e => {
 
 els.btnNew.addEventListener("click", async () => {
   currentInput = [];
+  timer.reset();
   const s = await postJSON("/wordle/new", {});
   render(s);
+  timer.armAutoStart();
 });
 
 // ---- Name editor ----

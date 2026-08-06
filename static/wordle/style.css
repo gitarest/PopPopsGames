@@ -162,6 +162,13 @@ h1 {
 .status.win  { color: var(--accent); }
 .status.loss { color: #f87171; }
 
+.timer-row {
+  color: var(--muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+.timer-row strong { color: var(--text); }
+
 /* ---- Keyboard ---- */
 .keyboard {
   display: flex;

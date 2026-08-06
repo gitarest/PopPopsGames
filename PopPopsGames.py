@@ -84,6 +84,13 @@ from tetris import (
     tick as tet_tick,
     game_state as tet_game_state,
 )
+from crossword import (
+    new_game as cw_new_game,
+    set_letter as cw_set_letter,
+    clear_letter as cw_clear_letter,
+    reveal_letter as cw_reveal_letter,
+    game_state as cw_game_state,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -582,6 +589,36 @@ def tet_build_payload(session, ip=None):
     }
 
 
+def cw_apply_score(session, ip=None):
+    """Award Crossword points exactly once per completed game."""
+    game = session["cw_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "crossword")
+    if game["hints_used"] == 0:
+        score["player"] += level_points(game["level"])
+        log_event(ip, session["name"], "crossword", f"solved:{game['level']}:no_hints")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "crossword", f"solved:{game['level']}:hints={game['hints_used']}")
+    game["scored"] = True
+    save_scores()
+
+
+def cw_build_payload(session, ip=None):
+    """Score any finished Crossword game and build the full client payload."""
+    if "cw_game" not in session:
+        session["cw_game"] = cw_new_game()
+    cw_apply_score(session, ip)
+    return {
+        **cw_game_state(session["cw_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "crossword"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -625,6 +662,7 @@ def new_session():
         "memory_game": memory_new_game(),
         "ws_game": ws_new_game(),
         "tet_game": tet_new_game(),
+        "cw_game": cw_new_game(),
         "name": None,
     }
 
@@ -686,7 +724,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -695,7 +733,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -750,7 +788,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/tetris/state":
             sid, session, is_new = self.get_session()
             self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/"):
+        elif self.path == "/crossword/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -819,6 +860,14 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_tetris_move()
         elif self.path == "/tetris/tick":
             self.handle_tetris_tick()
+        elif self.path == "/crossword/new":
+            self.handle_cw_new()
+        elif self.path == "/crossword/letter":
+            self.handle_cw_letter()
+        elif self.path == "/crossword/clear":
+            self.handle_cw_clear()
+        elif self.path == "/crossword/reveal":
+            self.handle_cw_reveal()
         else:
             self.send_error(404, "Not found")
 
@@ -1208,6 +1257,52 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["tet_game"] = tet_new_game()
         tet_tick(session["tet_game"])
         self.send_json(tet_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_cw_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["cw_game"].get("level")
+        session["cw_game"] = cw_new_game(level)
+        session["cw_game"]["start_logged"] = True
+        log_event(ip, session["name"], "crossword", f"start:{session['cw_game']['level']}")
+        self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_cw_letter(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "cw_game" not in session:
+            session["cw_game"] = cw_new_game()
+        data = self.read_json_body()
+        row, col, letter = data.get("row"), data.get("col"), data.get("letter")
+        if not session["cw_game"].get("start_logged"):
+            log_event(ip, session["name"], "crossword", f"start:{session['cw_game']['level']}")
+            session["cw_game"]["start_logged"] = True
+        if isinstance(row, int) and isinstance(col, int):
+            cw_set_letter(session["cw_game"], row, col, letter)
+        self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_cw_clear(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "cw_game" not in session:
+            session["cw_game"] = cw_new_game()
+        data = self.read_json_body()
+        row, col = data.get("row"), data.get("col")
+        if isinstance(row, int) and isinstance(col, int):
+            cw_clear_letter(session["cw_game"], row, col)
+        self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_cw_reveal(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "cw_game" not in session:
+            session["cw_game"] = cw_new_game()
+        data = self.read_json_body()
+        row, col = data.get("row"), data.get("col")
+        if isinstance(row, int) and isinstance(col, int):
+            cw_reveal_letter(session["cw_game"], row, col)
+        self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))
