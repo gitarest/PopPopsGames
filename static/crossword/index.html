@@ -33,6 +33,12 @@
 
     <div id="grid" class="grid" aria-label="Crossword grid"></div>
 
+    <!-- Invisible but real, focusable input — tapping a cell focuses this to
+         summon the phone's on-screen keyboard (a plain grid cell can't). -->
+    <input id="mobile-input" class="mobile-input" type="text" autocomplete="off"
+           autocapitalize="characters" autocorrect="off" spellcheck="false"
+           aria-hidden="true" tabindex="-1">
+
     <div class="clue-lists">
       <div class="clue-col">
         <h2>Across</h2>

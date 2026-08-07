@@ -91,6 +91,16 @@ from crossword import (
     reveal_letter as cw_reveal_letter,
     game_state as cw_game_state,
 )
+from matchstick import (
+    new_game as ms_new_game,
+    move_stick as ms_move_stick,
+    reset_puzzle as ms_reset_puzzle,
+    give_up as ms_give_up,
+    game_state as ms_game_state,
+    solve_custom_equation as ms_solve_custom_equation,
+    serialize_slots as ms_serialize_slots,
+    LEVEL_POINTS as MS_LEVEL_POINTS,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -619,6 +629,41 @@ def cw_build_payload(session, ip=None):
     }
 
 
+def ms_apply_score(session, ip=None):
+    """Award Matchstick Equation points exactly once per completed game.
+    Giving up always counts as a loss, regardless of moves_used — even if
+    the player replays the revealed solution by hand afterward, `scored`
+    is already set here so that replay can't earn a second, un-conceded
+    score once give_up() runs."""
+    game = session["ms_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "matchstick")
+    if not game["gave_up"] and game["moves_used"] <= game["par_moves"]:
+        score["player"] += MS_LEVEL_POINTS.get(game["level"], 1)
+        log_event(ip, session["name"], "matchstick", f"solved:{game['level']}:moves={game['moves_used']}")
+    else:
+        score["hangman"] += 1
+        reason = "gave_up" if game["gave_up"] else "solved-over-par"
+        log_event(ip, session["name"], "matchstick", f"{reason}:{game['level']}:moves={game['moves_used']}")
+    game["scored"] = True
+    save_scores()
+
+
+def ms_build_payload(session, ip=None):
+    """Score any finished Matchstick Equation game and build the full client payload."""
+    if "ms_game" not in session:
+        session["ms_game"] = ms_new_game()
+    ms_apply_score(session, ip)
+    return {
+        **ms_game_state(session["ms_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "matchstick"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -663,6 +708,7 @@ def new_session():
         "ws_game": ws_new_game(),
         "tet_game": tet_new_game(),
         "cw_game": cw_new_game(),
+        "ms_game": ms_new_game(),
         "name": None,
     }
 
@@ -724,7 +770,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -733,7 +779,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -791,7 +837,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/crossword/state":
             sid, session, is_new = self.get_session()
             self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/"):
+        elif self.path == "/matchstick/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -868,6 +917,16 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_cw_clear()
         elif self.path == "/crossword/reveal":
             self.handle_cw_reveal()
+        elif self.path == "/matchstick/new":
+            self.handle_ms_new()
+        elif self.path == "/matchstick/move":
+            self.handle_ms_move()
+        elif self.path == "/matchstick/reset":
+            self.handle_ms_reset()
+        elif self.path == "/matchstick/solve":
+            self.handle_ms_solve()
+        elif self.path == "/matchstick/give_up":
+            self.handle_ms_give_up()
         else:
             self.send_error(404, "Not found")
 
@@ -1303,6 +1362,79 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if isinstance(row, int) and isinstance(col, int):
             cw_reveal_letter(session["cw_game"], row, col)
         self.send_json(cw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ms_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["ms_game"].get("level")
+        session["ms_game"] = ms_new_game(level)
+        session["ms_game"]["start_logged"] = True
+        log_event(ip, session["name"], "matchstick", f"start:{session['ms_game']['level']}")
+        self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ms_move(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ms_game" not in session:
+            session["ms_game"] = ms_new_game()
+        data = self.read_json_body()
+        from_index, from_seg = data.get("from_index"), data.get("from_seg")
+        to_index, to_seg = data.get("to_index"), data.get("to_seg")
+        if not session["ms_game"].get("start_logged"):
+            log_event(ip, session["name"], "matchstick", f"start:{session['ms_game']['level']}")
+            session["ms_game"]["start_logged"] = True
+        if isinstance(from_index, int) and isinstance(to_index, int) and isinstance(from_seg, str) and isinstance(to_seg, str):
+            ms_move_stick(session["ms_game"], from_index, from_seg, to_index, to_seg)
+        self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ms_reset(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ms_game" not in session:
+            session["ms_game"] = ms_new_game()
+        ms_reset_puzzle(session["ms_game"])
+        log_event(ip, session["name"], "matchstick", "reset")
+        self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ms_give_up(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "ms_game" not in session:
+            session["ms_game"] = ms_new_game()
+        ms_give_up(session["ms_game"])
+        self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_ms_solve(self):
+        """Stateless: computes a minimum-move solution for a user-typed equation
+        without touching the player's actual in-progress ms_game session."""
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        text = str(data.get("equation", ""))
+        try:
+            result = ms_solve_custom_equation(text)
+        except ValueError as e:
+            self.send_json({"ok": False, "error": str(e)}, sid=sid, set_cookie=is_new)
+            return
+        if result is None:
+            self.send_json({
+                "ok": False,
+                "error": "I couldn't find a way to fix that with the same number of "
+                         "matchsticks — try a different equation!",
+            }, sid=sid, set_cookie=is_new)
+            return
+        original_slots, moves, moves_needed = result
+        log_event(ip, session["name"], "matchstick", f"solve_custom:{text.strip()}:{moves_needed}_moves")
+        self.send_json({
+            "ok": True,
+            "moves_needed": moves_needed,
+            "original_slots": ms_serialize_slots(original_slots),
+            "solution": [
+                {"from_index": fi, "from_seg": fs, "to_index": ti, "to_seg": ts}
+                for (fi, fs, ti, ts) in moves
+            ],
+        }, sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

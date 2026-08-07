@@ -19,6 +19,7 @@ import test_memory
 import test_wordscramble
 import test_tetris
 import test_crossword
+import test_matchstick
 
 _MODULES = (
     test_hangman,
@@ -32,6 +33,7 @@ _MODULES = (
     test_wordscramble,
     test_tetris,
     test_crossword,
+    test_matchstick,
 )
 
 

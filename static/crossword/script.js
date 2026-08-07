@@ -19,6 +19,7 @@ const els = {
   nameInput:   document.getElementById("name-input"),
   nameList:    document.getElementById("name-list"),
   timer:       document.getElementById("timer"),
+  mobileInput: document.getElementById("mobile-input"),
 };
 
 const timer = createGameTimer(els.timer);
@@ -59,6 +60,7 @@ async function revealLetter(row, col) {
 
 async function newGame(level) {
   selRow = selCol = null;
+  els.mobileInput.blur();
   timer.reset();
   state = await postJSON("/crossword/new", { level: level || state?.level });
   render(state);
@@ -129,6 +131,7 @@ function selectCell(row, col, preferDir) {
       selDir = acrossLen >= 2 ? "across" : "down";
     }
   }
+  els.mobileInput.focus();  // summons the phone's keyboard; no-op on desktop
   renderGridOnly();
 }
 
@@ -137,6 +140,7 @@ function selectClue(number, dir) {
   const pos = map[number];
   if (!pos) return;
   selRow = pos[0]; selCol = pos[1]; selDir = dir;
+  els.mobileInput.focus();
   renderGridOnly();
 }
 
@@ -323,16 +327,28 @@ els.btnReveal.addEventListener("click", () => {
   if (selRow !== null && !state.over) revealLetter(selRow, selCol);
 });
 
+// Letters are handled below via the hidden mobile-input's "input" event —
+// that fires the same way whether typed on a physical keyboard (which also
+// types into the focused input) or a phone's on-screen one, so one code
+// path covers both. Keydown here only needs Backspace and arrow-key nav,
+// since an already-empty input doesn't fire "input" on Backspace.
+els.mobileInput.addEventListener("input", () => {
+  const typed = els.mobileInput.value;
+  els.mobileInput.value = "";
+  if (!state || state.over || selRow === null) return;
+  const letters = typed.match(/[a-zA-Z]/g);
+  if (!letters) return;
+  const letter = letters[letters.length - 1].toUpperCase();
+  setLetter(selRow, selCol, letter);
+  advanceSelection();
+  renderGridOnly();
+});
+
 document.addEventListener("keydown", e => {
   if (els.nameInput.hidden === false) return;  // don't hijack typing in the name box
   if (!state || state.over || selRow === null) return;
 
-  if (/^[a-zA-Z]$/.test(e.key)) {
-    e.preventDefault();
-    setLetter(selRow, selCol, e.key.toUpperCase());
-    advanceSelection();
-    renderGridOnly();
-  } else if (e.key === "Backspace") {
+  if (e.key === "Backspace") {
     e.preventDefault();
     const hadLetter = !!state.cells[selRow][selCol].letter;
     if (hadLetter) {

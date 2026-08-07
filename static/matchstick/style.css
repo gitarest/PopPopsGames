@@ -8,6 +8,8 @@
   --wrong: #f87171;
   --key: #334155;
   --key-hover: #475569;
+  --stick: #b45309;
+  --stick-tip: #dc2626;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,6 +37,7 @@ h1 {
   font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: 0.05em;
+  text-align: center;
 }
 
 /* ---------- Score bar ---------- */
@@ -115,130 +118,119 @@ h1 {
 .level-btn:hover  { border-color: var(--muted); }
 .level-btn.active { border-color: var(--accent); color: var(--accent); }
 
-/* ---------- Stats row ---------- */
-.stats {
+/* ---------- Status ---------- */
+.status {
   color: var(--muted);
-  display: flex;
-  gap: 16px;
-  font-size: 0.85rem;
-}
-.stats strong { color: var(--text); }
-
-/* ---------- Grid ---------- */
-.grid {
-  display: grid;
-  gap: 2px;
-  background: var(--panel);
-  border-radius: 6px;
-  padding: 4px;
+  font-size: 0.9rem;
+  text-align: center;
+  min-height: 1.3em;
 }
 
-/* Invisible but real and reasonably sized so mobile browsers reliably focus
-   it (some treat near-zero-size or display:none inputs as unfocusable).
-   font-size:16px stops iOS from auto-zooming the page when it gets focus. */
-.mobile-input {
-  position: absolute;
-  width: 40px;
-  height: 40px;
-  opacity: 0;
-  border: none;
-  padding: 0;
-  margin: 0;
-  font-size: 16px;
-  pointer-events: none;
-}
-
-.cell {
-  aspect-ratio: 1;
-  width: 40px;
-  position: relative;
+/* ---------- Equation ---------- */
+.equation {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 3px;
   justify-content: center;
-  border-radius: 2px;
-  background: var(--key);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.cell.blocked {
-  background: transparent;
-  cursor: default;
-}
-
-.cell.selected {
-  background: #1d4ed8;
-}
-
-.cell.in-word {
-  background: #334155;
-  outline: 1px solid #475569;
-}
-
-.cell.solved {
-  background: #166534;
-}
-
-.cell .number {
-  color: var(--muted);
-  font-size: 0.55rem;
-  left: 3px;
-  position: absolute;
-  top: 1px;
-}
-
-.cell .letter {
-  color: var(--text);
-  font-size: 1.1rem;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-/* ---------- Clue lists ---------- */
-.clue-lists {
-  display: flex;
-  gap: 16px;
   width: 100%;
 }
 
-.clue-col {
-  flex: 1;
-  min-width: 0;
-}
-
-.clue-col h2 {
-  color: var(--muted);
-  font-size: 0.8rem;
-  margin-bottom: 6px;
-  text-transform: uppercase;
-}
-
-.clue-list {
+.cell {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  list-style: none;
+  align-items: center;
+  justify-content: center;
 }
 
-.clue-list li {
-  background: var(--panel);
-  border-radius: 6px;
+.cell.digit    { width: 38px; height: 66px; }
+.cell.operator { width: 30px; height: 66px; }
+.cell.equals   { width: 30px; height: 66px; }
+
+/* Digit SVGs fill their cell (their viewBox aspect ratio already matches);
+   operator/equals SVGs stay their natural small size and get centered by
+   the flexbox above, instead of filling — that's what kept them off-center.
+   30px/38px are sized so a stick's rendered length matches a digit stick's
+   (~20px) instead of looking shorter. */
+.cell.digit svg    { display: block; width: 100%; height: 100%; }
+.cell.operator svg { display: block; width: 30px; height: 30px; }
+.cell.equals svg   { display: block; width: 30px; height: 38px; }
+
+.stick-shaft {
+  stroke-width: 5;
+  stroke-linecap: round;
+  transition: stroke 0.15s, opacity 0.15s;
+}
+.stick-shaft.unlit {
+  stroke: var(--key);
+  opacity: 0.4;
+  stroke-dasharray: 2 4;
+}
+.stick-shaft.lit {
+  stroke: var(--stick);
+  opacity: 1;
+}
+
+.stick-head {
+  transition: fill 0.15s, opacity 0.15s;
+}
+.stick-head.unlit {
+  fill: none;
+}
+.stick-head.lit {
+  fill: var(--stick-tip);
+  opacity: 1;
+}
+
+.stick-hit {
+  stroke: transparent;
+  stroke-width: 14;
+}
+
+.stick-group.clickable {
   cursor: pointer;
-  font-size: 0.8rem;
-  padding: 6px 8px;
-}
-.clue-list li:hover { background: var(--key); }
-
-.clue-list li.solved {
-  color: var(--correct);
-  text-decoration: line-through;
 }
 
-.clue-list li .clue-number {
+.stick-group.selected .stick-shaft {
+  stroke: var(--accent);
+}
+.stick-group.selected .stick-head {
+  fill: var(--accent);
+  opacity: 1;
+}
+.stick-group.selected {
+  animation: pulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes pulse {
+  from { opacity: 1; }
+  to   { opacity: 0.5; }
+}
+
+.stick-group.demo-flash .stick-shaft {
+  stroke: #facc15;
+  opacity: 1;
+  stroke-dasharray: none;
+}
+.stick-group.demo-flash .stick-head {
+  fill: #facc15;
+  opacity: 1;
+}
+.stick-group.demo-flash {
+  animation: demo-flash 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes demo-flash {
+  from { opacity: 1; }
+  to   { opacity: 0.25; }
+}
+
+/* ---------- Stats ---------- */
+.stats {
   color: var(--muted);
-  font-weight: 700;
-  margin-right: 4px;
+  font-size: 0.85rem;
 }
+.stats strong { color: var(--text); }
 
 /* ---------- Result banner ---------- */
 .result {
@@ -259,6 +251,13 @@ h1 {
   width: 100%;
 }
 
+/* Show Me keeps its space reserved even when inactive, so Reset and New
+   Game never shift position depending on whether the puzzle is solved. */
+.actions-inactive {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .action-btn {
   background: var(--key);
   border: none;
@@ -271,6 +270,7 @@ h1 {
   padding: 10px 16px;
 }
 .action-btn:hover { background: var(--key-hover); }
+.action-btn:disabled { opacity: 0.5; cursor: default; }
 
 .new-game {
   background: var(--accent);
@@ -281,10 +281,61 @@ h1 {
   flex: 1;
   font-size: 1rem;
   font-weight: 700;
-  padding: 10px 16px;
+  padding: 10px 32px;
 }
 .new-game:hover  { opacity: 0.9; }
 .new-game:active { transform: scale(0.97); }
+
+/* ---------- Solve dialog ---------- */
+.solve-dialog {
+  background: var(--panel);
+  border: none;
+  border-radius: 12px;
+  color: var(--text);
+  padding: 20px;
+  width: min(90vw, 340px);
+}
+.solve-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+.solve-dialog h2 {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+}
+.solve-dialog p {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin-bottom: 10px;
+}
+
+#solve-input {
+  background: var(--key);
+  border: 1px solid var(--key-hover);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1rem;
+  padding: 10px 12px;
+  width: 100%;
+}
+#solve-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.solve-error {
+  color: var(--wrong) !important;
+  font-size: 0.85rem !important;
+  margin-top: 8px !important;
+}
+
+.solve-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+.solve-actions button {
+  flex: 1;
+}
 
 /* ---------- Home logo ---------- */
 .home-btn {
