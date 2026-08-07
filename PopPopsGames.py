@@ -101,6 +101,13 @@ from matchstick import (
     serialize_slots as ms_serialize_slots,
     LEVEL_POINTS as MS_LEVEL_POINTS,
 )
+from minesweeper import (
+    new_game as mw_new_game,
+    reveal as mw_reveal,
+    flag as mw_flag,
+    game_state as mw_game_state,
+    LEVEL_POINTS as MW_LEVEL_POINTS,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -664,6 +671,36 @@ def ms_build_payload(session, ip=None):
     }
 
 
+def mw_apply_score(session, ip=None):
+    """Award Minesweeper points exactly once per completed game."""
+    game = session["mw_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "minesweeper")
+    if game["won"]:
+        score["player"] += MW_LEVEL_POINTS.get(game["level"], 1)
+        log_event(ip, session["name"], "minesweeper", f"win:{game['level']}")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "minesweeper", f"loss:{game['level']}")
+    game["scored"] = True
+    save_scores()
+
+
+def mw_build_payload(session, ip=None):
+    """Score any finished Minesweeper game and build the full client payload."""
+    if "mw_game" not in session:
+        session["mw_game"] = mw_new_game()
+    mw_apply_score(session, ip)
+    return {
+        **mw_game_state(session["mw_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "minesweeper"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -709,6 +746,7 @@ def new_session():
         "tet_game": tet_new_game(),
         "cw_game": cw_new_game(),
         "ms_game": ms_new_game(),
+        "mw_game": mw_new_game(),
         "name": None,
     }
 
@@ -770,7 +808,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick", "/minesweeper"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -779,7 +817,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -840,7 +878,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/matchstick/state":
             sid, session, is_new = self.get_session()
             self.send_json(ms_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/"):
+        elif self.path == "/minesweeper/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -927,6 +968,12 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_ms_solve()
         elif self.path == "/matchstick/give_up":
             self.handle_ms_give_up()
+        elif self.path == "/minesweeper/new":
+            self.handle_mw_new()
+        elif self.path == "/minesweeper/reveal":
+            self.handle_mw_reveal()
+        elif self.path == "/minesweeper/flag":
+            self.handle_mw_flag()
         else:
             self.send_error(404, "Not found")
 
@@ -1435,6 +1482,41 @@ class HangmanHandler(BaseHTTPRequestHandler):
                 for (fi, fs, ti, ts) in moves
             ],
         }, sid=sid, set_cookie=is_new)
+
+    def handle_mw_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["mw_game"].get("level")
+        session["mw_game"] = mw_new_game(level)
+        session["mw_game"]["start_logged"] = True
+        log_event(ip, session["name"], "minesweeper", f"start:{session['mw_game']['level']}")
+        self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_mw_reveal(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "mw_game" not in session:
+            session["mw_game"] = mw_new_game()
+        data = self.read_json_body()
+        row, col = data.get("row"), data.get("col")
+        if not session["mw_game"].get("start_logged"):
+            log_event(ip, session["name"], "minesweeper", f"start:{session['mw_game']['level']}")
+            session["mw_game"]["start_logged"] = True
+        if isinstance(row, int) and isinstance(col, int):
+            mw_reveal(session["mw_game"], row, col)
+        self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_mw_flag(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "mw_game" not in session:
+            session["mw_game"] = mw_new_game()
+        data = self.read_json_body()
+        row, col = data.get("row"), data.get("col")
+        if isinstance(row, int) and isinstance(col, int):
+            mw_flag(session["mw_game"], row, col)
+        self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))
