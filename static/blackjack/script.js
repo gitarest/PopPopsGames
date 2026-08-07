@@ -55,9 +55,9 @@ function renderHand(el, hand) {
 
 const STATUS_MSGS = {
   player:          "Your turn — Hit or Stand",
-  player_blackjack:"Blackjack! You win! 🎉",
-  dealer_blackjack:"Dealer has Blackjack!",
-  push_blackjack:  "Both Blackjack — Push!",
+  player_blackjack:"21! You win! 🎉",
+  dealer_blackjack:"Dealer has 21!",
+  push_blackjack:  "Both have 21 — Push!",
   player_bust:     "Bust! You went over 21.",
   dealer_bust:     "Dealer busts — you win! 🎉",
   player_higher:   "You win! 🎉",

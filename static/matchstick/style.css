@@ -127,13 +127,17 @@ h1 {
 }
 
 /* ---------- Equation ---------- */
+/* No width:100% here on purpose — it must size to its own content (which can
+   be wider than .game on a long equation) so the JS scale-to-fit below can
+   shrink the whole box+content as one unit. If this box had a fixed width,
+   scaling it would shrink the overflowing children by the same factor as the
+   box itself, leaving the overflow-to-box ratio (and the clipping) unchanged. */
 .equation {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 3px;
+  flex-wrap: nowrap;
+  gap: 6px;
   justify-content: center;
-  width: 100%;
 }
 
 .cell {
@@ -143,18 +147,19 @@ h1 {
   justify-content: center;
 }
 
-.cell.digit    { width: 38px; height: 66px; }
-.cell.operator { width: 30px; height: 66px; }
-.cell.equals   { width: 30px; height: 66px; }
+.cell.digit    { width: 76px; height: 132px; }
+.cell.operator { width: 60px; height: 132px; }
+.cell.equals   { width: 60px; height: 132px; }
 
 /* Digit SVGs fill their cell (their viewBox aspect ratio already matches);
    operator/equals SVGs stay their natural small size and get centered by
    the flexbox above, instead of filling — that's what kept them off-center.
-   30px/38px are sized so a stick's rendered length matches a digit stick's
-   (~20px) instead of looking shorter. */
+   60px/76px are sized so a stick's rendered length matches a digit stick's
+   (~40px) instead of looking shorter. Doubled from the original 30px/38px/
+   20px so matchsticks are easier to tap accurately on a phone. */
 .cell.digit svg    { display: block; width: 100%; height: 100%; }
-.cell.operator svg { display: block; width: 30px; height: 30px; }
-.cell.equals svg   { display: block; width: 30px; height: 38px; }
+.cell.operator svg { display: block; width: 60px; height: 60px; }
+.cell.equals svg   { display: block; width: 60px; height: 76px; }
 
 .stick-shaft {
   stroke-width: 5;

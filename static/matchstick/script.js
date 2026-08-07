@@ -245,6 +245,38 @@ function buildEquationCells(slots, { interactive, flash }) {
 
     els.equation.appendChild(cell);
   });
+
+  fitEquationWidth();
+}
+
+/**
+ * Long equations (e.g. "25 + 32 = 27") can be wider than a phone screen at
+ * the doubled stick size. Rather than wrapping mid-equation, shrink the whole
+ * row uniformly (via transform: scale) just enough to fit in one line.
+ *
+ * #equation deliberately has no CSS width — it sizes to its own content
+ * (which can exceed the .game column's width). Comparing against the
+ * *parent's* clientWidth (not #equation's own) is what makes this work:
+ * scaling an element whose own box already equals its content shrinks the
+ * whole thing uniformly to fit. Scaling a box that's fixed-width with
+ * overflowing children inside it (the first version of this) doesn't help —
+ * the box and its overflow shrink by the same factor, so the fraction that
+ * overflows (and gets clipped) never changes.
+ *
+ * Also avoids els.equation.scrollWidth for the "natural" measurement: with
+ * justify-content:center on an overflowing nowrap flex row, overflow spills
+ * evenly onto both sides, and scrollWidth only accounts for the "end" side.
+ * Summing the children's own widths sidesteps that.
+ */
+function fitEquationWidth() {
+  els.equation.style.transform = "none";
+  const children = Array.from(els.equation.children);
+  if (children.length === 0) return;
+  const gap = parseFloat(getComputedStyle(els.equation).columnGap) || 0;
+  const natural = children.reduce((sum, el) => sum + el.offsetWidth, 0) + gap * (children.length - 1);
+  const available = els.equation.parentElement.clientWidth;
+  const scale = available > 0 && natural > available ? available / natural : 1;
+  els.equation.style.transform = scale < 1 ? `scale(${scale})` : "none";
 }
 
 function renderEquationOnly() {
