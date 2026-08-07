@@ -16,9 +16,18 @@ Deploy the current codebase to the live server at mccontek.com.
 
 3. **Check for uncommitted changes** — run `git status --short`. If there are any changes:
    - Ask the user: "What should the commit message be?"
-   - Run: `git add -A` then `git commit -m "<their message>"`
+   - Create and switch to a new branch off master: `git checkout -b deploy-<YYYYmmdd-HHMMSS>` (use the current timestamp).
+   - Run: `git add -A` then `git commit -m "<their message>"`.
+   - Push the branch: `git push -u origin deploy-<YYYYmmdd-HHMMSS>`.
+   - Open a PR: `gh pr create --base master --head deploy-<YYYYmmdd-HHMMSS> --title "<their message>" --body "<their message>"`.
+   - Approve it: `gh pr review --approve`.
+   - Merge it: `gh pr merge --merge --delete-branch`. This lands the commit on `master` and deletes the temporary branch (local and remote).
+   - Switch back to master and sync: `git checkout master && git pull`.
+   - If any of these steps fail (e.g., `gh` not authenticated, merge conflict, branch protection blocking self-approval), stop and report the failure — don't fall back to pushing directly to master.
 
-4. **Push to GitHub** — run `git push origin master`. If it fails because no remote is configured, tell the user they need to complete Phase 1 of the deployment plan (create a GitHub repo and add it as the remote).
+   If there are no uncommitted changes, skip straight to the next step (there may still be earlier commits on `master` waiting to be pushed).
+
+4. **Push to GitHub** — run `git push origin master`. Only relevant if step 3 was skipped but `master` has local commits not yet on the remote (the PR merge in step 3 already syncs `master` when it runs). If it fails because no remote is configured, tell the user they need to complete Phase 1 of the deployment plan (create a GitHub repo and add it as the remote).
 
 5. **Deploy to server** — run:
    ```
@@ -26,9 +35,10 @@ Deploy the current codebase to the live server at mccontek.com.
    ```
    Replace `DEPLOY_USER` and `DEPLOY_HOST` with the values from `server.env`.
 
-6. **Report result** — show whether each step succeeded. If SSH fails with "connection refused" or "no route to host", tell the user the server may be down or the SSH key may not be set up yet.
+6. **Report result** — show whether each step succeeded, including a link to the merged PR. If SSH fails with "connection refused" or "no route to host", tell the user the server may be down or the SSH key may not be set up yet.
 
 ## Notes
 - `scores.json` is gitignored and is never touched — grandkids' scores are always safe
 - The deploy SSH session runs as root (set in `server.env`)
 - Static file changes are live immediately after restart; players just need a hard-refresh (Ctrl+F5)
+- Changes land on `master` via a PR (branch → PR → self-approve → merge), not a direct push — `gh` is authenticated as the repo owner/admin, so self-approval and merge both go through without needing a second reviewer
