@@ -7,7 +7,9 @@ const els = {
   levelToggle: document.getElementById("level-toggle"),
   result:      document.getElementById("result"),
   enemyGrid:   document.getElementById("enemy-grid"),
+  playerGrid:  document.getElementById("player-grid"),
   enemyLeft:   document.getElementById("enemy-left"),
+  yourLeft:    document.getElementById("your-left"),
   enemyFleetList: document.getElementById("enemy-fleet-list"),
   randomize:   document.getElementById("randomize"),
   newGame:     document.getElementById("new-game"),
@@ -135,8 +137,11 @@ function render(s) {
   els.scorePlayer.textContent = s.score.player;
   els.scoreComp.textContent   = s.score.hangman;
   els.enemyLeft.textContent   = s.ships_remaining.computer;
+  els.yourLeft.textContent    = s.ships_remaining.player;
 
   buildGrid(els.enemyGrid, s.enemy_waters, s.board_size, { interactive: true });
+  buildGrid(els.playerGrid, s.your_fleet, s.board_size, { interactive: false });
+
   buildFleetList(els.enemyFleetList, s.fleets.computer);
 
   els.randomize.disabled = s.first_shot_fired || s.over;
