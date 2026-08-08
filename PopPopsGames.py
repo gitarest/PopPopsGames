@@ -64,6 +64,7 @@ from wordle import (
     new_game as wl_new_game,
     game_state as wl_game_state,
     guess as wl_guess,
+    MAX_GUESSES as MAX_WORDLE_GUESSES,
 )
 from memory import (
     new_game as memory_new_game,
@@ -107,6 +108,13 @@ from minesweeper import (
     flag as mw_flag,
     game_state as mw_game_state,
     LEVEL_POINTS as MW_LEVEL_POINTS,
+)
+from battleship import (
+    new_game as bs_new_game,
+    fire as bs_fire,
+    randomize_player_fleet as bs_randomize,
+    game_state as bs_game_state,
+    LEVEL_POINTS as BS_LEVEL_POINTS,
 )
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
@@ -175,6 +183,11 @@ def init_db():
             best   INTEGER NOT NULL DEFAULT 0,
             level  TEXT    NOT NULL DEFAULT '',
             PRIMARY KEY (player, game))""")
+        db.execute("""CREATE TABLE IF NOT EXISTS wordle_guesses (
+            player TEXT    NOT NULL,
+            tries  INTEGER NOT NULL,
+            count  INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (player, tries))""")
         db.commit()
         if os.path.exists(SCORES_FILE):
             try:
@@ -259,8 +272,47 @@ def save_scores():
         pass
 
 
+def load_wordle_guesses():
+    """Return {player: {tries_str: count}} for every player's Wordle wins."""
+    try:
+        db = sqlite3.connect(DB_FILE)
+        rows = db.execute("SELECT player, tries, count FROM wordle_guesses").fetchall()
+        db.close()
+    except sqlite3.DatabaseError:
+        return {}
+    result = {}
+    for player, tries, count in rows:
+        result.setdefault(player, {})[str(tries)] = count
+    return result
+
+
+def record_wordle_win(player, tries):
+    """Increment this player's count of wins that took exactly `tries` guesses."""
+    entry = WORDLE_GUESSES.setdefault(player, {})
+    key = str(tries)
+    entry[key] = entry.get(key, 0) + 1
+    try:
+        db = sqlite3.connect(DB_FILE)
+        db.execute(
+            """INSERT INTO wordle_guesses (player, tries, count) VALUES (?,?,1)
+               ON CONFLICT(player, tries) DO UPDATE SET count = count + 1""",
+            (player, tries)
+        )
+        db.commit()
+        db.close()
+    except sqlite3.DatabaseError:
+        pass
+
+
+def wordle_guess_history(player):
+    """This player's win count per guess-count 1..MAX_GUESSES, zero-filled."""
+    counts = WORDLE_GUESSES.get(player, {})
+    return {str(n): counts.get(str(n), 0) for n in range(1, MAX_WORDLE_GUESSES + 1)}
+
+
 init_db()
 SCORES = load_scores()
+WORDLE_GUESSES = load_wordle_guesses()
 
 
 # ---------------------------------------------------------------------------
@@ -490,9 +542,11 @@ def wl_apply_score(session, ip=None):
         return
     score = active_score(session, "wordle")
     if game["phase"] == "won":
-        pts = 7 - len(game["guesses"])  # 6 pts for 1-guess win, 1 pt for 6-guess win
+        tries = len(game["guesses"])
+        pts = 7 - tries  # 6 pts for 1-guess win, 1 pt for 6-guess win
         score["player"] += pts
-        log_event(ip, session["name"], "wordle", f"win:{len(game['guesses'])}_guesses")
+        record_wordle_win(session["name"] or "Guest", tries)
+        log_event(ip, session["name"], "wordle", f"win:{tries}_guesses")
     else:
         score["hangman"] += 1
         log_event(ip, session["name"], "wordle", "loss")
@@ -507,10 +561,11 @@ def wl_build_payload(session, ip=None):
     wl_apply_score(session, ip)
     return {
         **wl_game_state(session["wl_game"]),
-        "name":        session["name"],
-        "score":       active_score(session, "wordle"),
-        "total_score": total_score(session),
-        "names":       sorted(n for n in SCORES if n != "Guest"),
+        "name":          session["name"],
+        "score":         active_score(session, "wordle"),
+        "total_score":   total_score(session),
+        "names":         sorted(n for n in SCORES if n != "Guest"),
+        "guess_history": wordle_guess_history(session["name"] or "Guest"),
     }
 
 
@@ -701,6 +756,36 @@ def mw_build_payload(session, ip=None):
     }
 
 
+def bs_apply_score(session, ip=None):
+    """Award Battleship points exactly once per completed game."""
+    game = session["bs_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "battleship")
+    if game["won"]:
+        score["player"] += BS_LEVEL_POINTS.get(game["level"], 1)
+        log_event(ip, session["name"], "battleship", f"win:{game['level']}")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "battleship", f"loss:{game['level']}")
+    game["scored"] = True
+    save_scores()
+
+
+def bs_build_payload(session, ip=None):
+    """Score any finished Battleship game and build the full client payload."""
+    if "bs_game" not in session:
+        session["bs_game"] = bs_new_game()
+    bs_apply_score(session, ip)
+    return {
+        **bs_game_state(session["bs_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "battleship"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -747,6 +832,7 @@ def new_session():
         "cw_game": cw_new_game(),
         "ms_game": ms_new_game(),
         "mw_game": mw_new_game(),
+        "bs_game": bs_new_game(),
         "name": None,
     }
 
@@ -808,7 +894,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick", "/minesweeper"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick", "/minesweeper", "/battleship"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -817,7 +903,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -881,7 +967,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/minesweeper/state":
             sid, session, is_new = self.get_session()
             self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/"):
+        elif self.path == "/battleship/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -974,6 +1063,12 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_mw_reveal()
         elif self.path == "/minesweeper/flag":
             self.handle_mw_flag()
+        elif self.path == "/battleship/new":
+            self.handle_bs_new()
+        elif self.path == "/battleship/fire":
+            self.handle_bs_fire()
+        elif self.path == "/battleship/randomize":
+            self.handle_bs_randomize()
         else:
             self.send_error(404, "Not found")
 
@@ -1517,6 +1612,38 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if isinstance(row, int) and isinstance(col, int):
             mw_flag(session["mw_game"], row, col)
         self.send_json(mw_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bs_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or session["bs_game"].get("level")
+        session["bs_game"] = bs_new_game(level)
+        session["bs_game"]["start_logged"] = True
+        log_event(ip, session["name"], "battleship", f"start:{session['bs_game']['level']}")
+        self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bs_fire(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bs_game" not in session:
+            session["bs_game"] = bs_new_game()
+        data = self.read_json_body()
+        row, col = data.get("row"), data.get("col")
+        if not session["bs_game"].get("start_logged"):
+            log_event(ip, session["name"], "battleship", f"start:{session['bs_game']['level']}")
+            session["bs_game"]["start_logged"] = True
+        if isinstance(row, int) and isinstance(col, int):
+            bs_fire(session["bs_game"], row, col)
+        self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_bs_randomize(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "bs_game" not in session:
+            session["bs_game"] = bs_new_game()
+        bs_randomize(session["bs_game"])
+        self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))

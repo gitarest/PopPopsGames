@@ -14,6 +14,7 @@ const els = {
   nameList:    document.getElementById("name-list"),
   keyboard:    document.getElementById("keyboard"),
   timer:       document.getElementById("timer"),
+  guessHistory:document.getElementById("guess-history"),
 };
 
 const timer = createGameTimer(els.timer);
@@ -67,12 +68,47 @@ function buildKeyboard() {
 
 // ---- Render ----
 
+function renderGuessHistory(history) {
+  history = history || {};
+  const counts = [];
+  for (let n = 1; n <= MAX_GUESSES; n++) counts.push(history[String(n)] || 0);
+  const max = Math.max(1, ...counts);
+
+  els.guessHistory.innerHTML = "";
+  counts.forEach((count, i) => {
+    const n = i + 1;
+    const row = document.createElement("div");
+    row.className = "history-row";
+
+    const label = document.createElement("span");
+    label.className = "history-label";
+    label.textContent = n;
+
+    const barWrap = document.createElement("div");
+    barWrap.className = "history-bar-wrap";
+    const bar = document.createElement("div");
+    bar.className = "history-bar";
+    bar.style.width = `${(count / max) * 100}%`;
+    barWrap.appendChild(bar);
+
+    const countEl = document.createElement("span");
+    countEl.className = "history-count";
+    countEl.textContent = count;
+
+    row.appendChild(label);
+    row.appendChild(barWrap);
+    row.appendChild(countEl);
+    els.guessHistory.appendChild(row);
+  });
+}
+
 function render(s) {
   state = s;
 
   els.scorePlayer.textContent  = s.score ? (s.score.player  || 0) : 0;
   els.scoreHangman.textContent = s.score ? (s.score.hangman || 0) : 0;
   els.nameBtn.textContent = s.name || "Guest";
+  renderGuessHistory(s.guess_history);
 
   // Fill in submitted guesses
   s.guesses.forEach((g, r) => {

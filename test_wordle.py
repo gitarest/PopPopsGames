@@ -46,13 +46,16 @@ class IsolatedScores(unittest.TestCase):
         os.close(fd)
         self._orig_db     = server.DB_FILE
         self._orig_scores = server.SCORES
+        self._orig_guesses = server.WORDLE_GUESSES
         server.DB_FILE = self._db_path
         server.init_db()
         server.SCORES = {}
+        server.WORDLE_GUESSES = {}
 
     def tearDown(self):
         server.DB_FILE = self._orig_db
         server.SCORES  = self._orig_scores
+        server.WORDLE_GUESSES = self._orig_guesses
         os.unlink(self._db_path)
 
 
@@ -234,6 +237,50 @@ class TestWLScoring(IsolatedScores):
         loaded = server.load_scores()
         self.assertEqual(loaded["Ada"]["wordle"]["player"], 4)  # 7-3=4
 
+    def test_win_records_guess_history(self):
+        sess = self._make_won(name="Ada", attempts=3)
+        server.wl_apply_score(sess)
+        self.assertEqual(server.wordle_guess_history("Ada")["3"], 1)
+
+    def test_guess_history_zero_filled_for_unseen_tries(self):
+        sess = self._make_won(name="Ada", attempts=3)
+        server.wl_apply_score(sess)
+        history = server.wordle_guess_history("Ada")
+        for n in range(1, wordle.MAX_GUESSES + 1):
+            self.assertIn(str(n), history)
+        self.assertEqual(history["1"], 0)
+
+    def test_guess_history_accumulates_across_wins(self):
+        server.wl_apply_score(self._make_won(name="Ada", attempts=2))
+        server.wl_apply_score(self._make_won(name="Ada", attempts=2))
+        server.wl_apply_score(self._make_won(name="Ada", attempts=5))
+        history = server.wordle_guess_history("Ada")
+        self.assertEqual(history["2"], 2)
+        self.assertEqual(history["5"], 1)
+
+    def test_loss_does_not_record_guess_history(self):
+        sess = self._make_lost(name="Ada")
+        server.wl_apply_score(sess)
+        history = server.wordle_guess_history("Ada")
+        self.assertEqual(sum(history.values()), 0)
+
+    def test_guess_history_persists_to_db(self):
+        server.wl_apply_score(self._make_won(name="Ada", attempts=4))
+        reloaded = server.load_wordle_guesses()
+        self.assertEqual(reloaded["Ada"]["4"], 1)
+
+    def test_guess_history_independent_per_player(self):
+        server.wl_apply_score(self._make_won(name="Ada", attempts=2))
+        server.wl_apply_score(self._make_won(name="Beth", attempts=6))
+        self.assertEqual(server.wordle_guess_history("Ada")["2"], 1)
+        self.assertEqual(server.wordle_guess_history("Ada")["6"], 0)
+        self.assertEqual(server.wordle_guess_history("Beth")["6"], 1)
+
+    def test_guest_wins_share_history_bucket(self):
+        server.wl_apply_score(self._make_won(name=None, attempts=1))
+        server.wl_apply_score(self._make_won(name=None, attempts=1))
+        self.assertEqual(server.wordle_guess_history("Guest")["1"], 2)
+
 
 # ---------------------------------------------------------------------------
 # End-to-end API
@@ -263,8 +310,26 @@ class TestWLApi(IsolatedScores):
         st = self.client().call("/wordle/state")
         for f in ("guesses", "phase", "over", "word", "attempts",
                   "max_guesses", "letter_states", "invalid_guess",
-                  "score", "total_score", "names"):
+                  "score", "total_score", "names", "guess_history"):
             self.assertIn(f, st)
+
+    def test_guess_history_updates_after_win_via_api(self):
+        c = self.client()
+        c.call("/wordle/new", {})
+        word = server.SESSIONS[c.sid()]["wl_game"]["word"]
+        st = c.call("/wordle/guess", {"word": word})
+        self.assertEqual(st["guess_history"]["1"], 1)
+
+    def test_guess_history_switches_with_name(self):
+        c = self.client()
+        c.call("/wordle/new", {})
+        word = server.SESSIONS[c.sid()]["wl_game"]["word"]
+        c.call("/name", {"name": "Zoe"})
+        st = c.call("/wordle/guess", {"word": word})
+        self.assertEqual(st["guess_history"]["1"], 1)
+        c.call("/name", {"name": ""})
+        st = c.call("/wordle/state")
+        self.assertEqual(st["guess_history"]["1"], 0)
 
     def test_new_game_resets(self):
         c = self.client()
