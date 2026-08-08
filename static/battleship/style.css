@@ -1,0 +1,305 @@
+:root {
+  --bg: #1e293b;
+  --panel: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --correct: #4ade80;
+  --wrong: #f87171;
+  --key: #334155;
+  --key-hover: #475569;
+  --water: #1e3a5f;
+  --ship: #64748b;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  padding: 12px 10px 20px;
+}
+
+.game {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+/* ---------- Score bar ---------- */
+.score {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--panel);
+  border-radius: 10px;
+  padding: 8px 16px;
+  width: 100%;
+}
+.score-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+.score-side:last-child { justify-content: flex-end; }
+.score-label { color: var(--muted); font-size: 0.85rem; }
+.score-num   { font-size: 1.4rem; font-weight: 700; min-width: 1.5ch; text-align: center; }
+.score-vs    { color: var(--muted); font-size: 0.8rem; }
+
+.name-btn {
+  background: none;
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 2px 8px;
+}
+.name-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.name-input {
+  background: var(--key);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 2px 8px;
+  width: 100px;
+}
+
+.name-list {
+  background: var(--panel);
+  border: 1px solid var(--key);
+  border-radius: 6px;
+  list-style: none;
+  padding: 4px 0;
+  position: absolute;
+  z-index: 10;
+  min-width: 120px;
+}
+.name-list li {
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 4px 12px;
+}
+.name-list li:hover { background: var(--key); }
+
+/* ---------- Level toggle ---------- */
+.level-toggle {
+  display: flex;
+  gap: 6px;
+}
+.level-btn {
+  background: var(--key);
+  border: 2px solid transparent;
+  border-radius: 20px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 5px 14px;
+  text-transform: capitalize;
+  transition: border-color 0.15s;
+}
+.level-btn:hover  { border-color: var(--muted); }
+.level-btn.active { border-color: var(--accent); color: var(--accent); }
+
+/* ---------- Result banner ---------- */
+.result {
+  background: var(--panel);
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 10px 20px;
+  text-align: center;
+  width: 100%;
+}
+.result.win  { color: var(--correct); }
+.result.loss { color: var(--wrong); }
+
+/* ---------- Board sections ---------- */
+.board-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.board-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.board-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.ships-left {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.ships-left strong { color: var(--text); }
+
+.hint {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* ---------- Grid + fleet legend ---------- */
+.board-body {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.grid {
+  display: grid;
+  gap: 2px;
+  background: var(--panel);
+  border-radius: 6px;
+  padding: 6px;
+}
+
+.cell {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: var(--water);
+  font-size: 0.8rem;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.cell.clickable {
+  cursor: pointer;
+}
+.cell.clickable:hover { background: #2d4d78; }
+
+.cell.ship { background: var(--ship); }
+
+.cell.damaged { background: #92400e; }
+
+.cell.miss { background: #0b2038; }
+.cell.miss::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  display: block;
+}
+
+.cell.hit { background: var(--wrong); }
+
+.cell.sunk { background: #7f1d1d; }
+
+/* Ship roster, listing each ship's name/size next to its grid. */
+.fleet-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 92px;
+  font-size: 0.72rem;
+}
+
+.fleet-list li {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--panel);
+  border-radius: 5px;
+  padding: 4px 7px;
+  color: var(--muted);
+}
+
+.fleet-list .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ship);
+  flex-shrink: 0;
+}
+.fleet-list li.damaged .dot { background: #d97706; }
+.fleet-list li.sunk   .dot { background: var(--wrong); }
+
+.fleet-list li.sunk {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.fleet-list .len {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- Buttons ---------- */
+.actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.action-btn {
+  background: var(--key);
+  border: none;
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 6px 12px;
+}
+.action-btn:hover { background: var(--key-hover); }
+.action-btn:disabled { opacity: 0.4; cursor: default; }
+
+.new-game {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #0f172a;
+  cursor: pointer;
+  flex: 1;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 10px 16px;
+}
+.new-game:hover  { opacity: 0.9; }
+.new-game:active { transform: scale(0.97); }
+
+/* ---------- Home logo ---------- */
+.home-btn {
+  display: block;
+  margin: 1.5rem auto 0;
+  max-width: 220px;
+}
+.home-btn img { display: block; width: 100%; }
+.home-btn:hover { opacity: 0.8; }
