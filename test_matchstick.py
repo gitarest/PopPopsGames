@@ -105,11 +105,52 @@ class TestMatchstickGameLogic(unittest.TestCase):
         self.assertEqual(g["level"], ms.DEFAULT_LEVEL)
 
     def test_generated_puzzles_start_false_and_have_a_fix(self):
+        # Uses the stored solution (not find_fix, which only brute-forces
+        # single-move fixes) since hard mode can now generate 2-move puzzles.
         for level in ms.LEVELS:
             for _ in range(15):
                 g = ms.new_game(level)
                 self.assertFalse(ms._equation_true(g["slots"]))
-                self.assertIsNotNone(find_fix(g["slots"]))
+                solved = ms._copy_slots(g["slots"])
+                for fi, fs, ti, ts in g["solution"]:
+                    solved[fi]["segments"].discard(fs)
+                    solved[ti]["segments"].add(ts)
+                self.assertTrue(ms._equation_true(solved))
+
+    def test_hard_mode_sometimes_needs_two_moves(self):
+        # Statistical: hard mode randomly mixes 1- and 2-move puzzles, so
+        # both values must show up over enough trials.
+        par_values = {ms.new_game("hard")["par_moves"] for _ in range(40)}
+        self.assertEqual(par_values, {1, 2})
+
+    def test_easy_and_medium_always_need_one_move(self):
+        for level in ("easy", "medium"):
+            for _ in range(15):
+                self.assertEqual(ms.new_game(level)["par_moves"], 1)
+
+    def test_par_moves_always_matches_solution_length(self):
+        for level in ms.LEVELS:
+            for _ in range(10):
+                g = ms.new_game(level)
+                self.assertEqual(g["par_moves"], len(g["solution"]))
+
+    def test_generate_two_move_puzzle_produces_valid_solution(self):
+        for _ in range(10):
+            slots, solution = ms._generate_two_move_puzzle("hard")
+            self.assertIsNotNone(slots)
+            self.assertEqual(len(solution), 2)
+            self.assertFalse(ms._equation_true(slots))
+            solved = apply_moves(slots, solution)
+            self.assertTrue(ms._equation_true(solved))
+
+    def test_two_move_puzzle_has_no_single_move_fix(self):
+        # Cross-check against a different algorithm: find_fix() brute-forces
+        # single-move fixes only, so it must find nothing for a puzzle the
+        # exhaustive solver verified needs exactly 2.
+        for _ in range(10):
+            slots, _solution = ms._generate_two_move_puzzle("hard")
+            self.assertIsNotNone(slots)
+            self.assertIsNone(find_fix(slots))
 
     def test_move_stick_basic_pickup_and_place(self):
         g = ms.new_game("easy")
@@ -279,11 +320,8 @@ class TestMatchstickGameLogic(unittest.TestCase):
         for level in ms.LEVELS:
             for _ in range(10):
                 g = ms.new_game(level)
-                self.assertEqual(len(g["solution"]), 1)
-                trial = ms._copy_slots(g["slots"])
-                fi, fs, ti, ts = g["solution"][0]
-                trial[fi]["segments"].discard(fs)
-                trial[ti]["segments"].add(ts)
+                self.assertEqual(len(g["solution"]), g["par_moves"])
+                trial = apply_moves(g["slots"], g["solution"])
                 self.assertTrue(ms._equation_true(trial))
 
     def test_original_slots_unaffected_by_gameplay(self):

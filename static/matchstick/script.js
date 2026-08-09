@@ -22,6 +22,14 @@ const OPERATOR_COORDS = {
 };
 const EQUALS_BARS = [[4, 10, 20, 10], [4, 20, 20, 20]];
 
+// Decorative-only: which segments are lit for each digit 0-9, used to draw a
+// small matchstick-style number inline in the status text (e.g. how many
+// moves a puzzle needs). Not shared with the equation slots server-side.
+const MINI_DIGIT_SEGMENTS = {
+  "0": "abcdef", "1": "bc",      "2": "abdeg",   "3": "abcdg", "4": "bcfg",
+  "5": "acdfg",  "6": "acdefg",  "7": "abc",     "8": "abcdefg", "9": "abcdfg",
+};
+
 const els = {
   levelToggle: document.getElementById("level-toggle"),
   status:      document.getElementById("status"),
@@ -203,6 +211,17 @@ function makeStick([x1, y1, x2, y2], lit, clickable) {
   return g;
 }
 
+/** A small, fully-decorative matchstick-style digit for inline use in text. */
+function makeMiniDigit(digit) {
+  const svg = makeSvg("0 0 40 70");
+  svg.classList.add("mini-digit");
+  const litSegs = MINI_DIGIT_SEGMENTS[String(digit)] || "";
+  Object.entries(DIGIT_COORDS).forEach(([seg, coords]) => {
+    svg.appendChild(makeStick(coords, litSegs.includes(seg), false));
+  });
+  return svg;
+}
+
 /**
  * Draws the equation from `slots` into #equation. In interactive mode, digit
  * and operator sticks get click handlers and reflect the current `selected`
@@ -379,10 +398,16 @@ function render(s) {
       els.result.className = "result win";
     }
     els.result.hidden = false;
+  } else if (selected) {
+    els.status.textContent = "Now tap an empty spot to place the stick.";
+    els.result.hidden = true;
   } else {
-    els.status.textContent = selected
-      ? "Now tap an empty spot to place the stick."
-      : "Move one matchstick to fix the equation!";
+    els.status.innerHTML = "";
+    els.status.appendChild(document.createTextNode("Move "));
+    els.status.appendChild(makeMiniDigit(s.par_moves));
+    els.status.appendChild(document.createTextNode(
+      s.par_moves === 1 ? " matchstick to fix the equation!" : " matchsticks to fix the equation!"
+    ));
     els.result.hidden = true;
   }
 
