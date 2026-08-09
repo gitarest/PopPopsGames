@@ -62,10 +62,15 @@ class IsolatedScores(unittest.TestCase):
 
 class TestBJGameLogic(unittest.TestCase):
 
-    def test_new_deck_has_52_cards(self):
+    def test_new_deck_has_156_cards(self):
         g = blackjack.new_game()
-        # Fresh game with no hands dealt yet
-        self.assertEqual(len(g["deck"]), 52)
+        # Fresh game with no hands dealt yet — 3-deck shoe (3 x 52)
+        self.assertEqual(len(g["deck"]), 156)
+
+    def test_new_deck_has_3_copies_of_each_card(self):
+        g = blackjack.new_game()
+        count = sum(1 for c in g["deck"] if c["rank"] == "A" and c["suit"] == "♠")
+        self.assertEqual(count, 3)
 
     def test_new_game_phase_is_deal(self):
         g = blackjack.new_game()
@@ -75,7 +80,7 @@ class TestBJGameLogic(unittest.TestCase):
     def test_deal_removes_4_cards(self):
         g = blackjack.new_game()
         blackjack.deal(g)
-        self.assertEqual(len(g["deck"]), 48)
+        self.assertEqual(len(g["deck"]), 152)
         self.assertEqual(len(g["player_hand"]), 2)
         self.assertEqual(len(g["dealer_hand"]), 2)
 
@@ -314,8 +319,8 @@ class TestBJApi(IsolatedScores):
         c = self.client()
         c.call("/blackjack/state")
         st = c.call("/blackjack/new", {})
-        # tally carries over intentionally — just verify a fresh 52-card deck was shuffled
-        self.assertGreater(st["cards_remaining"], 44)
+        # tally carries over intentionally — just verify a fresh 3-deck shoe was shuffled
+        self.assertGreater(st["cards_remaining"], 148)
         self.assertIn(st["phase"], ("player", "round_over"))
 
     def test_hit_adds_card(self):

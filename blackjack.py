@@ -1,14 +1,15 @@
-"""Blackjack game logic for Pop Pop's Games — Player vs Dealer, one 52-card deck."""
+"""Blackjack game logic for Pop Pop's Games — Player vs Dealer, 3-deck shoe."""
 
 import random
 
 SUITS = ("♠", "♥", "♦", "♣")
 RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 RED_SUITS = {"♥", "♦"}
+NUM_DECKS = 3
 
 
 def _new_deck():
-    return [{"rank": r, "suit": s} for s in SUITS for r in RANKS]
+    return [{"rank": r, "suit": s} for _ in range(NUM_DECKS) for s in SUITS for r in RANKS]
 
 
 def _hand_value(hand):
