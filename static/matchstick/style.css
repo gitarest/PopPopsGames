@@ -120,10 +120,21 @@ h1 {
 
 /* ---------- Status ---------- */
 .status {
+  align-items: center;
   color: var(--muted);
-  font-size: 0.9rem;
-  text-align: center;
+  display: flex;
+  font-size: 1.05rem;
+  justify-content: center;
   min-height: 1.3em;
+  text-align: center;
+}
+
+.status .mini-digit {
+  display: inline-block;
+  width: 17px;
+  height: 30px;
+  margin: 0 3px;
+  vertical-align: middle;
 }
 
 /* ---------- Equation ---------- */

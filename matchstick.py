@@ -205,16 +205,45 @@ def _generate_puzzle(level, max_tries=200):
     return _try_corrupt(_build_slots(7, "+", 1, 8))
 
 
+def _generate_two_move_puzzle(level, max_tries=50):
+    """Hard-mode variant: corrupt a true equation twice in a row, then verify
+    with an exhaustive search that the result *actually* needs 2 moves — two
+    independent random corruptions can coincidentally land only 1 move away
+    from some other same-shape true equation, so the minimum can't just be
+    assumed from the construction. Returns (None, None) if no verified
+    2-move puzzle turns up within max_tries (caller falls back to 1-move)."""
+    for _ in range(max_tries):
+        a, op, b, result = _random_equation(level)
+        true_slots = _build_slots(a, op, b, result)
+        once, _undo1 = _try_corrupt(true_slots)
+        if once is None:
+            continue
+        twice, _undo2 = _try_corrupt(once)
+        if twice is None:
+            continue
+
+        d1, d2, d3 = len(str(a)), len(str(b)), len(str(result))
+        lit = _segment_set(twice)
+        best_moves, best_extra, best_missing = _exhaustive_min_reshuffle(lit, len(lit), d1, d2, d3)
+        if best_moves == 2:
+            return twice, _moves_from_reshuffle(best_extra, best_missing)
+    return None, None
+
+
 def new_game(level=DEFAULT_LEVEL):
     if level not in LEVELS:
         level = DEFAULT_LEVEL
-    slots, solution = _generate_puzzle(level)
+    slots = solution = None
+    if level == "hard" and random.random() < 0.5:
+        slots, solution = _generate_two_move_puzzle(level)
+    if slots is None:
+        slots, solution = _generate_puzzle(level)
     return {
         "slots": slots,
         "original_slots": _copy_slots(slots),
         "solution": solution,  # [(from_index, from_seg, to_index, to_seg), ...]
         "level": level,
-        "par_moves": 1,
+        "par_moves": len(solution),
         "moves_used": 0,
         "over": False,
         "won": False,
@@ -324,20 +353,14 @@ def parse_custom_equation(text):
     return a_str, op, b_str, result_str
 
 
-def solve_custom_equation(text):
-    """Find the fewest stick-moves to make a user-typed equation true, trying
-    both +/- as the operator and every same-length digit combination that
-    keeps the exact same total stick count (the only thing moves preserve).
-    Returns (original_slots, solution_moves, moves_needed), or None if no
-    equation of the same shape is reachable with that exact stick budget.
-    Raises ValueError for malformed input (from parse_custom_equation)."""
-    a_str, op, b_str, result_str = parse_custom_equation(text)
-    original_slots = _build_slots_from_parts(a_str, op, b_str, result_str)
-    budget = (_digits_stick_count(a_str) + len(OPERATOR_SEGMENTS[op])
-              + _digits_stick_count(b_str) + _digits_stick_count(result_str))
-    original_lit = _segment_set(original_slots)
-    d1, d2, d3 = len(a_str), len(b_str), len(result_str)
-
+def _exhaustive_min_reshuffle(lit, budget, d1, d2, d3):
+    """Search every d1/d2/d3-digit equation reachable with the exact same
+    total stick budget as `lit` (a set of currently-lit (index, seg) pairs),
+    and return (best_moves, best_extra, best_missing) for the closest one —
+    `best_extra` are lit positions that must be vacated, `best_missing` are
+    unlit positions that must be filled, len(best_extra) == len(best_moves)
+    since the budget is conserved. Returns (None, None, None) if no equation
+    of that shape matches the budget at all."""
     best_moves = None
     best_extra = best_missing = None
 
@@ -357,8 +380,8 @@ def solve_custom_equation(text):
                     continue
                 cand_slots = _build_slots_from_parts(a_c, cand_op, b_c, result_c)
                 cand_lit = _segment_set(cand_slots)
-                extra = original_lit - cand_lit
-                missing = cand_lit - original_lit
+                extra = lit - cand_lit
+                missing = cand_lit - lit
                 moves_needed = len(extra)
                 if best_moves is None or moves_needed < best_moves:
                     best_moves = moves_needed
@@ -370,11 +393,30 @@ def solve_custom_equation(text):
         if best_moves == 0:
             break
 
+    return best_moves, best_extra, best_missing
+
+
+def _moves_from_reshuffle(extra, missing):
+    return [
+        (fi, fs, ti, ts)
+        for (fi, fs), (ti, ts) in zip(sorted(extra), sorted(missing))
+    ]
+
+
+def solve_custom_equation(text):
+    """Find the fewest stick-moves to make a user-typed equation true, trying
+    both +/- as the operator and every same-length digit combination that
+    keeps the exact same total stick count (the only thing moves preserve).
+    Returns (original_slots, solution_moves, moves_needed), or None if no
+    equation of the same shape is reachable with that exact stick budget.
+    Raises ValueError for malformed input (from parse_custom_equation)."""
+    a_str, op, b_str, result_str = parse_custom_equation(text)
+    original_slots = _build_slots_from_parts(a_str, op, b_str, result_str)
+    original_lit = _segment_set(original_slots)
+    budget = len(original_lit)
+    d1, d2, d3 = len(a_str), len(b_str), len(result_str)
+
+    best_moves, best_extra, best_missing = _exhaustive_min_reshuffle(original_lit, budget, d1, d2, d3)
     if best_moves is None:
         return None
-
-    moves = [
-        (fi, fs, ti, ts)
-        for (fi, fs), (ti, ts) in zip(sorted(best_extra), sorted(best_missing))
-    ]
-    return original_slots, moves, best_moves
+    return original_slots, _moves_from_reshuffle(best_extra, best_missing), best_moves
