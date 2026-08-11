@@ -878,6 +878,17 @@ class HangmanHandler(BaseHTTPRequestHandler):
             jar["sid"] = sid
             jar["sid"]["path"] = "/"
             jar["sid"]["httponly"] = True
+            # mccontek.com, www.mccontek.com, and games.mccontek.com all serve
+            # this same app (see nginx server_name), but a cookie with no
+            # Domain attribute is host-only — a player's session (name, in
+            # particular) wouldn't carry over if they land on a different one
+            # of those three. Scope it to the whole domain family, but only
+            # when actually serving on it — a bare Domain wouldn't match (and
+            # the browser would silently drop the cookie) when testing via
+            # localhost or a LAN IP.
+            host = (self.headers.get("Host") or "").split(":")[0].lower()
+            if host == "mccontek.com" or host.endswith(".mccontek.com"):
+                jar["sid"]["domain"] = ".mccontek.com"
             self.send_header("Set-Cookie", jar["sid"].OutputString())
         self.end_headers()
         self.wfile.write(body)
