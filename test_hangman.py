@@ -13,6 +13,7 @@ Every test that could persist a score redirects server.SCORES_FILE to a
 temp file so the real scores.json is never touched.
 """
 
+import http.client
 import http.cookiejar
 import json
 import os
@@ -218,6 +219,42 @@ class TestHangmanApi(IsolatedScores):
         st = self.client().call("/state")
         self.assertEqual(st["level"], server.DEFAULT_LEVEL)
         self.assertEqual(st["score"], {"player": 0, "hangman": 0})
+
+    def _set_cookie_header_for_host(self, host):
+        """Raw request bypassing urllib's cookie handling, so we can inspect
+        the literal Set-Cookie header text for a given Host header."""
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        try:
+            conn.request("GET", "/state", headers={"Host": host})
+            resp = conn.getresponse()
+            resp.read()
+            return resp.getheader("Set-Cookie")
+        finally:
+            conn.close()
+
+    def test_cookie_gets_shared_domain_on_production_hosts(self):
+        # mccontek.com, www.mccontek.com, and games.mccontek.com all serve
+        # this app (see nginx server_name) — the cookie must be scoped to
+        # the whole family so a player's session (name, scores) carries over
+        # regardless of which one they land on.
+        for host in ("mccontek.com", "www.mccontek.com", "games.mccontek.com"):
+            set_cookie = self._set_cookie_header_for_host(host)
+            self.assertIn("Domain=.mccontek.com", set_cookie, host)
+
+    def test_cookie_has_no_domain_for_local_dev(self):
+        # A Domain attribute that doesn't match the actual request host gets
+        # the whole cookie silently dropped by the browser — must never be
+        # sent for localhost/LAN-IP access (used for local dev and phone
+        # testing over WiFi).
+        for host in ("localhost", "localhost:8000", "192.168.4.54:8000", "127.0.0.1:8000"):
+            set_cookie = self._set_cookie_header_for_host(host)
+            self.assertNotIn("Domain", set_cookie, host)
+
+    def test_cookie_domain_match_is_not_fooled_by_lookalike_host(self):
+        # "evilmccontek.com" ends with the substring "mccontek.com" but is a
+        # different domain entirely — must not match.
+        set_cookie = self._set_cookie_header_for_host("evilmccontek.com")
+        self.assertNotIn("Domain", set_cookie)
 
     def test_new_without_level_keeps_current_level(self):
         c = self.client()
