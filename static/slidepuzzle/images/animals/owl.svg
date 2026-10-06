@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <radialGradient id="night" cx="0.75" cy="0.2" r="0.9">
+      <stop offset="0" stop-color="#3b82f6"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#night)"/>
+  <!-- big moon -->
+  <circle cx="300" cy="90" r="60" fill="#fef9c3"/>
+  <circle cx="280" cy="70" r="10" fill="#fde68a"/>
+  <circle cx="320" cy="110" r="14" fill="#fde68a"/>
+  <circle cx="325" cy="65" r="6" fill="#fde68a"/>
+  <!-- stars -->
+  <g fill="#fef08a">
+    <path d="M50,50 l4,10 10,4 -10,4 -4,10 -4,-10 -10,-4 10,-4 Z"/>
+    <path d="M150,30 l3,7 7,3 -7,3 -3,7 -3,-7 -7,-3 7,-3 Z"/>
+    <path d="M110,120 l3,7 7,3 -7,3 -3,7 -3,-7 -7,-3 7,-3 Z"/>
+    <path d="M370,200 l3,7 7,3 -7,3 -3,7 -3,-7 -7,-3 7,-3 Z"/>
+    <path d="M30,230 l3,7 7,3 -7,3 -3,7 -3,-7 -7,-3 7,-3 Z"/>
+  </g>
+  <!-- leaves -->
+  <g fill="#16a34a">
+    <ellipse cx="40" cy="300" rx="30" ry="14" transform="rotate(-25 40 300)"/>
+    <ellipse cx="370" cy="325" rx="30" ry="14" transform="rotate(20 370 325)"/>
+    <ellipse cx="330" cy="355" rx="24" ry="11" transform="rotate(-15 330 355)"/>
+  </g>
+  <!-- branch -->
+  <path d="M0,330 Q200,300 400,345 L400,370 Q200,325 0,355 Z" fill="#78350f"/>
+  <!-- body -->
+  <ellipse cx="200" cy="250" rx="95" ry="105" fill="#a16207"/>
+  <ellipse cx="200" cy="275" rx="62" ry="72" fill="#fde68a"/>
+  <g fill="none" stroke="#ca8a04" stroke-width="4" stroke-linecap="round">
+    <path d="M170,250 q8,8 16,0 M204,250 q8,8 16,0 M187,275 q8,8 16,0 M170,300 q8,8 16,0 M204,300 q8,8 16,0 M187,325 q8,8 16,0"/>
+  </g>
+  <!-- wings -->
+  <path d="M110,200 Q70,280 120,340 Q130,270 110,200 Z" fill="#854d0e"/>
+  <path d="M290,200 Q330,280 280,340 Q270,270 290,200 Z" fill="#854d0e"/>
+  <!-- ear tufts -->
+  <path d="M120,150 L105,80 L165,130 Z" fill="#854d0e"/>
+  <path d="M280,150 L295,80 L235,130 Z" fill="#854d0e"/>
+  <!-- head -->
+  <ellipse cx="200" cy="170" rx="95" ry="70" fill="#a16207"/>
+  <!-- eye discs -->
+  <circle cx="160" cy="170" r="42" fill="#fef3c7"/>
+  <circle cx="240" cy="170" r="42" fill="#fef3c7"/>
+  <circle cx="160" cy="170" r="26" fill="#f59e0b"/>
+  <circle cx="240" cy="170" r="26" fill="#f59e0b"/>
+  <circle cx="160" cy="170" r="14" fill="#1c1917"/>
+  <circle cx="240" cy="170" r="14" fill="#1c1917"/>
+  <circle cx="166" cy="163" r="6" fill="#fff"/>
+  <circle cx="246" cy="163" r="6" fill="#fff"/>
+  <!-- beak -->
+  <path d="M188,198 L212,198 L200,225 Z" fill="#f97316"/>
+  <!-- feet -->
+  <g fill="#f97316">
+    <ellipse cx="170" cy="345" rx="8" ry="12"/><ellipse cx="185" cy="347" rx="8" ry="12"/>
+    <ellipse cx="215" cy="347" rx="8" ry="12"/><ellipse cx="230" cy="345" rx="8" ry="12"/>
+  </g>
+</svg>

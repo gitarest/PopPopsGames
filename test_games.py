@@ -22,6 +22,7 @@ import test_crossword
 import test_matchstick
 import test_minesweeper
 import test_battleship
+import test_slidepuzzle
 
 _MODULES = (
     test_hangman,
@@ -38,6 +39,7 @@ _MODULES = (
     test_matchstick,
     test_minesweeper,
     test_battleship,
+    test_slidepuzzle,
 )
 
 

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7c3aed"/>
+      <stop offset="0.55" stop-color="#f472b6"/>
+      <stop offset="1" stop-color="#fdba74"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#sky)"/>
+  <!-- moon and stars -->
+  <circle cx="320" cy="70" r="34" fill="#fef9c3"/>
+  <circle cx="306" cy="62" r="6" fill="#fde68a"/>
+  <circle cx="332" cy="82" r="4" fill="#fde68a"/>
+  <g fill="#fff">
+    <circle cx="40" cy="40" r="3"/><circle cx="110" cy="70" r="2"/><circle cx="180" cy="30" r="3"/>
+    <circle cx="240" cy="90" r="2"/><circle cx="70" cy="120" r="2"/><circle cx="370" cy="150" r="2"/>
+  </g>
+  <!-- hills and pine trees -->
+  <path d="M0,300 Q100,240 200,290 T400,270 L400,400 L0,400 Z" fill="#166534"/>
+  <path d="M0,330 Q120,300 220,335 T400,320 L400,400 L0,400 Z" fill="#15803d"/>
+  <g fill="#14532d">
+    <path d="M30,300 L55,220 L80,300 Z"/><path d="M38,260 L55,200 L72,260 Z"/>
+    <path d="M330,290 L355,200 L380,290 Z"/><path d="M338,250 L355,180 L372,250 Z"/>
+  </g>
+  <!-- tail -->
+  <path d="M270,330 Q370,300 350,210 Q330,280 250,300 Z" fill="#ea580c"/>
+  <path d="M350,210 Q362,240 352,262 Q338,236 350,210 Z" fill="#fff7ed"/>
+  <!-- body -->
+  <ellipse cx="220" cy="320" rx="70" ry="50" fill="#f97316"/>
+  <ellipse cx="200" cy="335" rx="35" ry="30" fill="#fff7ed"/>
+  <!-- legs -->
+  <rect x="170" y="350" width="20" height="35" rx="8" fill="#7c2d12"/>
+  <rect x="240" y="350" width="20" height="35" rx="8" fill="#7c2d12"/>
+  <!-- ears -->
+  <path d="M145,190 L130,100 L195,160 Z" fill="#ea580c"/>
+  <path d="M255,190 L270,100 L205,160 Z" fill="#ea580c"/>
+  <path d="M150,175 L142,122 L180,160 Z" fill="#431407"/>
+  <path d="M250,175 L258,122 L220,160 Z" fill="#431407"/>
+  <!-- head -->
+  <path d="M120,200 Q200,120 280,200 Q260,260 200,290 Q140,260 120,200 Z" fill="#f97316"/>
+  <path d="M135,215 Q170,230 200,290 Q150,265 135,215 Z" fill="#fff7ed"/>
+  <path d="M265,215 Q230,230 200,290 Q250,265 265,215 Z" fill="#fff7ed"/>
+  <!-- eyes -->
+  <ellipse cx="170" cy="210" rx="11" ry="14" fill="#1c1917"/>
+  <ellipse cx="230" cy="210" rx="11" ry="14" fill="#1c1917"/>
+  <circle cx="174" cy="205" r="4" fill="#fff"/>
+  <circle cx="234" cy="205" r="4" fill="#fff"/>
+  <!-- nose and mouth -->
+  <ellipse cx="200" cy="270" rx="12" ry="9" fill="#1c1917"/>
+  <path d="M188,282 Q200,292 212,282" stroke="#1c1917" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- flowers -->
+  <g>
+    <circle cx="60" cy="360" r="10" fill="#facc15"/><circle cx="60" cy="360" r="4" fill="#ea580c"/>
+    <circle cx="110" cy="380" r="8" fill="#f9a8d4"/><circle cx="110" cy="380" r="3" fill="#fef08a"/>
+    <circle cx="330" cy="375" r="10" fill="#93c5fd"/><circle cx="330" cy="375" r="4" fill="#fef08a"/>
+  </g>
+</svg>
