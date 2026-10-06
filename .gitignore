@@ -14,11 +14,16 @@ events.log
 # SQLite database (runtime data — never commit)
 game.db
 
+# Local backups pulled from the server (/backup skill — never commit)
+*_backup.json
+*_backup.log
+*_backup.db
+
 # Editor / OS
 .vscode/*.log
 .DS_Store
 Thumbs.db
-static/*.tmp.*
+*.tmp.*
 
 # Deploy credentials (never commit)
 .claude/skills/deploy/server.env
