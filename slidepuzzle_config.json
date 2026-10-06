@@ -1,0 +1,7 @@
+{
+  "_help": "Per-player Slide Puzzle pictures. Put image files in static/slidepuzzle/images/players/ and map a player name (any capitalization) to a path relative to static/slidepuzzle/images/. A list of paths picks one at random each game. Players not listed get a random animal. Edits take effect on the next New Game, no restart needed.",
+  "players": {
+    "Example Player": "players/example.jpg",
+    "Example With Several": ["players/beach.jpg", "players/puppy.png"]
+  }
+}

@@ -220,6 +220,9 @@ The browser keeps two bits of UI state the server doesn't:
   the aliased imports in `PopPopsGames.py` (`from tictactoe import check_winner as
   ttt_check_winner`). Keep those aliases in sync if renaming functions in
   `tictactoe.py`.
+- Slide Puzzle pictures: `slidepuzzle_config.json` maps player name → image path
+  under `static/slidepuzzle/images/` (re-read each New Game, no restart).
+  Unlisted players get a random animal from `static/slidepuzzle/images/animals/`.
 - `static/script.js.tmp.*` files are editor temp artifacts; ignore them.
 - After renaming the folder (to "Pop Pops Games"), reopen VS Code to the new path.
   The folder must be closed in all programs before `Rename-Item` will succeed.

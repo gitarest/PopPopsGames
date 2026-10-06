@@ -116,6 +116,14 @@ from battleship import (
     game_state as bs_game_state,
     LEVEL_POINTS as BS_LEVEL_POINTS,
 )
+from slidepuzzle import (
+    new_game as sp_new_game,
+    move as sp_move,
+    give_up as sp_give_up,
+    game_state as sp_game_state,
+    pick_image as sp_pick_image,
+    LEVEL_POINTS as SP_LEVEL_POINTS,
+)
 from words import DEFAULT_LEVEL, LEVELS, WORDS_BY_LEVEL                    # noqa: F401
 
 HOST = "0.0.0.0"
@@ -159,6 +167,8 @@ CONTENT_TYPES = {
     ".jpeg": "image/jpeg",
     ".gif":  "image/gif",
     ".ico":  "image/x-icon",
+    ".svg":  "image/svg+xml",
+    ".webp": "image/webp",
 }
 
 
@@ -786,6 +796,49 @@ def bs_build_payload(session, ip=None):
     }
 
 
+def sp_apply_score(session, ip=None):
+    """Award Slide Puzzle points exactly once per completed game."""
+    game = session["sp_game"]
+    if game["scored"] or not game["over"]:
+        return
+    score = active_score(session, "slidepuzzle")
+    if game["won"]:
+        score["player"] += SP_LEVEL_POINTS.get(game["level"], 1)
+        log_event(ip, session["name"], "slidepuzzle", f"solved:{game['level']}:moves={game['moves']}")
+    else:
+        score["hangman"] += 1
+        log_event(ip, session["name"], "slidepuzzle", f"gave_up:{game['level']}:moves={game['moves']}")
+    game["scored"] = True
+    save_scores()
+
+
+def sp_new_session_game(session, level=None):
+    """Fresh puzzle with this player's picture (or a random animal)."""
+    old = session.get("sp_game") or {}
+    game = sp_new_game(level or old.get("level"),
+                       sp_pick_image(session["name"], avoid=old.get("image")))
+    game["image_for"] = session["name"]
+    return game
+
+
+def sp_build_payload(session, ip=None):
+    """Score any finished Slide Puzzle game and build the full client payload."""
+    game = session.get("sp_game")
+    # Sessions start nameless, so a puzzle made before the player picked their
+    # name has the wrong picture — swap it as long as no tile has moved yet.
+    if game is None or (game["moves"] == 0 and not game["over"]
+                        and game.get("image_for") != session["name"]):
+        session["sp_game"] = sp_new_session_game(session)
+    sp_apply_score(session, ip)
+    return {
+        **sp_game_state(session["sp_game"]),
+        "name":        session["name"],
+        "score":       active_score(session, "slidepuzzle"),
+        "total_score": total_score(session),
+        "names":       sorted(n for n in SCORES if n != "Guest"),
+    }
+
+
 def build_payload(session, ip=None):
     """Score any finished Hangman game and build the full client payload."""
     apply_score(session, ip)
@@ -835,6 +888,7 @@ def new_session():
         "bs_game": bs_new_game(),
         "name": None,
     }
+    # sp_game is created lazily by sp_build_payload, once the name is known.
 
 
 # ---------------------------------------------------------------------------
@@ -905,7 +959,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         The 301 redirects ensure the browser's base URL includes the trailing
         slash so relative asset paths (style.css, script.js) resolve correctly.
         """
-        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick", "/minesweeper", "/battleship"):
+        if path in ("/hangman", "/tictactoe", "/rps", "/connectfour", "/simonsays", "/blackjack", "/wordle", "/memory", "/wordscramble", "/tetris", "/crossword", "/matchstick", "/minesweeper", "/battleship", "/slidepuzzle"):
             self.send_response(301)
             self.send_header("Location", path + "/")
             self.send_header("Content-Length", "0")
@@ -914,7 +968,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
 
         if path in ("/", ""):
             rel = "index.html"
-        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/"):
+        elif path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/", "/slidepuzzle/"):
             rel = path.lstrip("/") + "index.html"
         else:
             rel = path.lstrip("/")
@@ -981,7 +1035,10 @@ class HangmanHandler(BaseHTTPRequestHandler):
         elif self.path == "/battleship/state":
             sid, session, is_new = self.get_session()
             self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
-        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/"):
+        elif self.path == "/slidepuzzle/state":
+            sid, session, is_new = self.get_session()
+            self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
+        elif self.path in ("/hangman/", "/tictactoe/", "/rps/", "/connectfour/", "/simonsays/", "/blackjack/", "/wordle/", "/memory/", "/wordscramble/", "/tetris/", "/crossword/", "/matchstick/", "/minesweeper/", "/battleship/", "/slidepuzzle/"):
             sid, session, is_new = self.get_session()
             game_name = self.path.strip("/")
             log_event(ip, session["name"], game_name, "visit")
@@ -1080,6 +1137,12 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_bs_fire()
         elif self.path == "/battleship/randomize":
             self.handle_bs_randomize()
+        elif self.path == "/slidepuzzle/new":
+            self.handle_sp_new()
+        elif self.path == "/slidepuzzle/move":
+            self.handle_sp_move()
+        elif self.path == "/slidepuzzle/give_up":
+            self.handle_sp_give_up()
         else:
             self.send_error(404, "Not found")
 
@@ -1655,6 +1718,38 @@ class HangmanHandler(BaseHTTPRequestHandler):
             session["bs_game"] = bs_new_game()
         bs_randomize(session["bs_game"])
         self.send_json(bs_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_sp_new(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        data = self.read_json_body()
+        level = str(data.get("level", "")).strip().lower() or None
+        session["sp_game"] = sp_new_session_game(session, level)
+        session["sp_game"]["start_logged"] = True
+        log_event(ip, session["name"], "slidepuzzle", f"start:{session['sp_game']['level']}")
+        self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_sp_move(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "sp_game" not in session:
+            sp_build_payload(session, ip)
+        data = self.read_json_body()
+        index = data.get("index")
+        if not session["sp_game"].get("start_logged"):
+            log_event(ip, session["name"], "slidepuzzle", f"start:{session['sp_game']['level']}")
+            session["sp_game"]["start_logged"] = True
+        if isinstance(index, int):
+            sp_move(session["sp_game"], index)
+        self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_sp_give_up(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "sp_game" not in session:
+            sp_build_payload(session, ip)
+        sp_give_up(session["sp_game"])
+        self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
         print("[PopPopsGames] " + (fmt % args))
