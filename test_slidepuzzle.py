@@ -252,6 +252,62 @@ class TestSlidePuzzleGameLogic(unittest.TestCase):
             self.assertTrue(replay["won"])
             self.assertEqual(slidepuzzle.game_state(g)["solution"], g["solution"])
 
+    def test_new_game_remembers_start_board(self):
+        g = slidepuzzle.new_game("medium")
+        self.assertEqual(g["start_tiles"], g["tiles"])
+        self.assertIsNot(g["start_tiles"], g["tiles"])
+        b = g["tiles"].index(15)
+        slidepuzzle.move(g, b + 1 if b % 4 < 3 else b - 1)
+        self.assertNotEqual(g["start_tiles"], g["tiles"])
+
+    def test_best_solve_solves_and_beats_reduction(self):
+        for level in slidepuzzle.LEVELS:
+            g = slidepuzzle.new_game(level)
+            best = slidepuzzle.best_solve(g["tiles"], g["size"])
+            self.assertLessEqual(len(best), len(slidepuzzle.solve(g["tiles"], g["size"])))
+            for index in best:
+                slidepuzzle.move(g, index)
+            self.assertTrue(g["won"], level)
+
+    def test_best_solve_is_optimal_on_easy(self):
+        # Optimal 3x3 lengths: compare A* against a plain BFS.
+        from collections import deque
+        for _ in range(5):
+            tiles = slidepuzzle.shuffled_tiles(3)
+            start, goal = tuple(tiles), tuple(range(9))
+            dist = {start: 0}
+            q = deque([start])
+            while goal not in dist:
+                st = q.popleft()
+                b = st.index(8)
+                for nb in slidepuzzle._neighbors(b, 3, set(range(9))):
+                    lst = list(st)
+                    lst[b], lst[nb] = lst[nb], lst[b]
+                    nxt = tuple(lst)
+                    if nxt not in dist:
+                        dist[nxt] = dist[st] + 1
+                        q.append(nxt)
+            self.assertEqual(len(slidepuzzle.best_solve(tiles, 3)), dist[goal])
+
+    def test_best_solution_only_after_win_and_cached(self):
+        g, undo = walked_game("easy")
+        g["start_tiles"] = list(g["tiles"])
+        self.assertIsNone(slidepuzzle.best_solution(g))
+        self.assertIsNone(slidepuzzle.game_state(g)["start_tiles"])
+        solve_by_walk(g, undo)
+        best = slidepuzzle.best_solution(g)
+        self.assertLessEqual(len(best), len(undo))
+        self.assertIs(slidepuzzle.best_solution(g), best)
+        st = slidepuzzle.game_state(g)
+        self.assertEqual(st["best_solution"], best)
+        self.assertEqual(st["start_tiles"], g["start_tiles"])
+
+    def test_best_solution_not_offered_after_give_up(self):
+        g = slidepuzzle.new_game("easy")
+        slidepuzzle.give_up(g)
+        self.assertIsNone(slidepuzzle.best_solution(g))
+        self.assertIsNone(slidepuzzle.game_state(g)["start_tiles"])
+
     def test_give_up_after_win_does_nothing(self):
         g, undo = walked_game("easy")
         solve_by_walk(g, undo)
@@ -449,6 +505,35 @@ class TestSlidePuzzleApi(IsolatedImages, IsolatedScores):
         self.assertTrue(st["won"])
         self.assertEqual(st["moves"], len(undo))
         self.assertEqual(st["score"], {"player": 1, "hangman": 0})
+
+    def test_best_solve_after_win(self):
+        c = self.client()
+        c.call("/slidepuzzle/new", {"level": "easy"})
+        g, undo = walked_game("easy")
+        game = server.SESSIONS[c.sid()]["sp_game"]
+        game["tiles"] = list(g["tiles"])
+        game["start_tiles"] = list(g["tiles"])
+        for index in reversed(undo):
+            st = c.call("/slidepuzzle/move", {"index": index})
+        self.assertTrue(st["won"])
+        self.assertIsNone(st["best_solution"])
+        st = c.call("/slidepuzzle/best_solve", {})
+        self.assertEqual(st["start_tiles"], g["tiles"])
+        self.assertLessEqual(len(st["best_solution"]), st["moves"])
+        replay = slidepuzzle.new_game("easy")
+        replay["tiles"] = list(st["start_tiles"])
+        for index in st["best_solution"]:
+            slidepuzzle.move(replay, index)
+        self.assertTrue(replay["won"])
+        self.assertEqual(st["score"], {"player": 1, "hangman": 0})  # no extra scoring
+
+    def test_best_solve_before_win_does_nothing(self):
+        c = self.client()
+        c.call("/slidepuzzle/state")
+        st = c.call("/slidepuzzle/best_solve", {})
+        self.assertIsNone(st["best_solution"])
+        self.assertIsNone(st["start_tiles"])
+        self.assertFalse(st["over"])
 
     def test_bad_move_payload_is_ignored(self):
         c = self.client()

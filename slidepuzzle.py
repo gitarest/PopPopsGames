@@ -122,8 +122,10 @@ def new_game(level=DEFAULT_LEVEL, image=None):
     if level not in LEVEL_SIZES:
         level = DEFAULT_LEVEL
     size = LEVEL_SIZES[level]
+    tiles = shuffled_tiles(size)
     return {
-        "tiles": shuffled_tiles(size),
+        "tiles": tiles,
+        "start_tiles": list(tiles),  # for Best Solve after a win
         "size": size,
         "level": level,
         "image": image,
@@ -132,6 +134,7 @@ def new_game(level=DEFAULT_LEVEL, image=None):
         "won": False,
         "gave_up": False,
         "scored": False,
+        "best_solution": None,
     }
 
 
@@ -201,44 +204,65 @@ def _place(tiles, size, region, targets):
     raise ValueError("unreachable placement")
 
 
-def _solve_3x3(tiles, size, region):
-    """A* (Manhattan distance) over the final 3x3 corner — an optimal finish."""
+def _heuristic(state, cells, size, blank):
+    """Manhattan distance plus linear conflicts (two tiles in their home row
+    or column but in the wrong order — one has to step aside, +2 moves)."""
+    total = 0
+    rows, cols = {}, {}
+    for cell, t in zip(cells, state):
+        if t == blank:
+            continue
+        r, c, tr, tc = cell // size, cell % size, t // size, t % size
+        total += abs(r - tr) + abs(c - tc)
+        if r == tr:
+            rows.setdefault(r, []).append(tc)
+        if c == tc:
+            cols.setdefault(c, []).append(tr)
+    for line in list(rows.values()) + list(cols.values()):
+        for i in range(len(line)):
+            for j in range(i + 1, len(line)):
+                if line[i] > line[j]:
+                    total += 2
+    return total
+
+
+def _astar(tiles, size, region, weight=1, limit=None):
+    """A* over the cells in `region`. weight=1 gives a shortest solution;
+    a bigger weight trades length for speed. Returns None if it has to
+    expand more than `limit` boards."""
     import heapq
     blank = size * size - 1
     cells = sorted(region)
-
-    def h(state):
-        total = 0
-        for cell, t in zip(cells, state):
-            if t != blank:
-                total += abs(cell // size - t // size) + abs(cell % size - t % size)
-        return total
-
+    index_of = {c: i for i, c in enumerate(cells)}
     start = tuple(tiles[c] for c in cells)
     goal = tuple(cells)
-    parent = {start: (None, None)}
+    parent = {start: None}
     cost = {start: 0}
-    heap = [(h(start), 0, start)]
+    heap = [(weight * _heuristic(start, cells, size, blank), 0, start)]
+    expanded = 0
     while heap:
         _, g, state = heapq.heappop(heap)
         if state == goal:
             path = []
-            while parent[state][0] is not None:
+            while parent[state] is not None:
                 state, clicked = parent[state]
                 path.append(clicked)
             return path[::-1]
         if g > cost[state]:
             continue
+        expanded += 1
+        if limit is not None and expanded > limit:
+            return None
         bi = state.index(blank)
         for nb in _neighbors(cells[bi], size, region):
-            ni = cells.index(nb)
+            ni = index_of[nb]
             lst = list(state)
             lst[bi], lst[ni] = lst[ni], lst[bi]
             nxt = tuple(lst)
             if g + 1 < cost.get(nxt, 1 << 30):
                 cost[nxt] = g + 1
                 parent[nxt] = (state, nb)
-                heapq.heappush(heap, (g + 1 + h(nxt), g + 1, nxt))
+                heapq.heappush(heap, (g + 1 + weight * _heuristic(nxt, cells, size, blank), g + 1, nxt))
     raise ValueError("unsolvable board")
 
 
@@ -272,8 +296,32 @@ def solve(tiles, size):
             run(_place(tiles, size, region, line[-2:]))
             region -= set(line[-2:])
         top += 1
-    run(_solve_3x3(tiles, size, region))
+    run(_astar(tiles, size, region))
     return path
+
+
+# Weighted-A* attempts per board size: (weight, max boards to expand). Each
+# takes at most a second or two; the shortest result wins. 3x3 is solved
+# exactly. 4x4 and 5x5 are too big to guarantee the fewest moves, but these
+# get much closer than solve() alone.
+BEST_SOLVE_TRIES = {
+    3: [(1, None)],
+    4: [(1.5, 200000)],
+    5: [(2, 60000), (3, 150000)],
+}
+
+
+def best_solve(tiles, size):
+    """The shortest click sequence we can find in reasonable time."""
+    best = None
+    for weight, limit in BEST_SOLVE_TRIES.get(size, []):
+        path = _astar(tiles, size, set(range(size * size)), weight, limit)
+        if path is not None and (best is None or len(path) < len(best)):
+            best = path
+            if limit is None:
+                return best  # exact
+    fallback = solve(tiles, size)
+    return best if best is not None and len(best) <= len(fallback) else fallback
 
 
 def give_up(game):
@@ -281,10 +329,20 @@ def give_up(game):
     board as it was, so the page can play them out."""
     if game["over"]:
         return
-    game["solution"] = solve(game["tiles"], game["size"])
+    game["solution"] = best_solve(game["tiles"], game["size"])
     game["tiles"] = list(range(game["size"] ** 2))
     game["over"] = True
     game["gave_up"] = True
+
+
+def best_solution(game):
+    """After a win: the best solve of the board the player started from
+    (cached, since the bigger boards take a moment)."""
+    if not game["won"]:
+        return None
+    if game.get("best_solution") is None:
+        game["best_solution"] = best_solve(game["start_tiles"], game["size"])
+    return game["best_solution"]
 
 
 def game_state(game):
@@ -299,4 +357,7 @@ def game_state(game):
         "won": game["won"],
         "gave_up": game["gave_up"],
         "solution": game.get("solution"),
+        # Only revealed once won, so it can't be used as a cheat sheet.
+        "start_tiles": list(game["start_tiles"]) if game["won"] else None,
+        "best_solution": game.get("best_solution"),
     }
