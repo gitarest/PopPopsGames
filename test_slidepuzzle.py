@@ -302,11 +302,22 @@ class TestSlidePuzzleGameLogic(unittest.TestCase):
         self.assertEqual(st["best_solution"], best)
         self.assertEqual(st["start_tiles"], g["start_tiles"])
 
-    def test_best_solution_not_offered_after_give_up(self):
+    def test_best_solution_offered_after_give_up(self):
         g = slidepuzzle.new_game("easy")
+        b = g["tiles"].index(8)
+        slidepuzzle.move(g, b + 1 if b % 3 < 2 else b - 1)
+        start = list(g["start_tiles"])
         slidepuzzle.give_up(g)
-        self.assertIsNone(slidepuzzle.best_solution(g))
-        self.assertIsNone(slidepuzzle.game_state(g)["start_tiles"])
+        best = slidepuzzle.best_solution(g)
+        st = slidepuzzle.game_state(g)
+        self.assertEqual(st["start_tiles"], start)
+        self.assertEqual(st["best_solution"], best)
+        # Best Solve starts from the original board, not where the player gave up.
+        replay = slidepuzzle.new_game("easy")
+        replay["tiles"] = start
+        for index in best:
+            slidepuzzle.move(replay, index)
+        self.assertTrue(replay["won"])
 
     def test_give_up_after_win_does_nothing(self):
         g, undo = walked_game("easy")
@@ -526,6 +537,16 @@ class TestSlidePuzzleApi(IsolatedImages, IsolatedScores):
             slidepuzzle.move(replay, index)
         self.assertTrue(replay["won"])
         self.assertEqual(st["score"], {"player": 1, "hangman": 0})  # no extra scoring
+
+    def test_best_solve_after_give_up(self):
+        c = self.client()
+        start = c.call("/slidepuzzle/state")["tiles"]
+        st = c.call("/slidepuzzle/give_up", {})
+        self.assertIsNone(st["best_solution"])
+        st = c.call("/slidepuzzle/best_solve", {})
+        self.assertEqual(st["start_tiles"], start)
+        self.assertTrue(st["best_solution"])
+        self.assertEqual(st["score"], {"player": 0, "hangman": 1})  # still just the one loss
 
     def test_best_solve_before_win_does_nothing(self):
         c = self.client()
