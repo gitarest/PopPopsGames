@@ -336,9 +336,9 @@ def give_up(game):
 
 
 def best_solution(game):
-    """After a win: the best solve of the board the player started from
-    (cached, since the bigger boards take a moment)."""
-    if not game["won"]:
+    """Once the game is over (solved or given up): the best solve of the board
+    the player started from (cached, since the bigger boards take a moment)."""
+    if not game["over"]:
         return None
     if game.get("best_solution") is None:
         game["best_solution"] = best_solve(game["start_tiles"], game["size"])
@@ -357,7 +357,7 @@ def game_state(game):
         "won": game["won"],
         "gave_up": game["gave_up"],
         "solution": game.get("solution"),
-        # Only revealed once won, so it can't be used as a cheat sheet.
-        "start_tiles": list(game["start_tiles"]) if game["won"] else None,
+        # Only revealed once over, so it can't be used as a cheat sheet.
+        "start_tiles": list(game["start_tiles"]) if game["over"] else None,
         "best_solution": game.get("best_solution"),
     }

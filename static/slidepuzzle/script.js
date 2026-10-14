@@ -83,10 +83,10 @@ async function giveUp() {
   render(state);
 }
 
-// After a win: replay the best solve of the same starting board, then
+// Once the game is over (solved or given up): replay the best solve of the same starting board, then
 // compare its move count with the player's.
 async function bestSolve() {
-  if (!state || !state.won) return;
+  if (!state || !state.over) return;
   if (!state.best_solution) {
     showThinking();
     const run = solveRun;
@@ -259,9 +259,9 @@ function render(s) {
   els.moves.textContent = s.moves;
   els.scorePlayer.textContent = s.score.player;
   els.scoreComp.textContent   = s.score.hangman;
-  // Give Up becomes Best Solve once the player has solved it themselves.
-  els.giveUp.textContent = s.won ? "Best Solve" : "Give Up";
-  els.giveUp.disabled = s.over && !s.won;
+  // Give Up becomes Best Solve once the game is over, either way.
+  els.giveUp.textContent = s.over ? "Best Solve" : "Give Up";
+  els.giveUp.disabled = false;
 
   if (s.over) {
     timer.stop();
@@ -270,7 +270,10 @@ function render(s) {
       ? `🎉 You did it in ${s.moves} moves${secs ? " and " + timer.formatTime(secs) : ""}!`
         + (s.best_solution ? "\n" + compareText(s.moves, s.best_solution.length) : "")
       : s.solution
-        ? `🤖 Solved in ${s.solution.length} moves. Try another one!`
+        ? `🤖 Solved in ${s.solution.length} moves from where you left off.`
+          + (s.best_solution
+            ? `\nBest Solve from the start: ${s.best_solution.length} moves`
+            : "\nTap Best Solve to see the best way from the start.")
         : "Here's the picture. Try another one!";
     els.result.className = "result " + (s.won ? "win" : "loss");
     els.result.hidden = false;
@@ -369,7 +372,7 @@ els.nameInput.addEventListener("keydown", e => {
 // ---------------------------------------------------------------------------
 
 els.newGame.addEventListener("click", () => newGame(state?.level));
-els.giveUp.addEventListener("click", () => (state?.won ? bestSolve() : giveUp()));
+els.giveUp.addEventListener("click", () => (state?.over ? bestSolve() : giveUp()));
 
 // ---------------------------------------------------------------------------
 // Boot

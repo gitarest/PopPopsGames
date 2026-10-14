@@ -1760,10 +1760,11 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if "sp_game" not in session:
             sp_build_payload(session, ip)
         game = session["sp_game"]
-        if game["won"] and game.get("best_solution") is None:
+        if game["over"] and game.get("best_solution") is None:
             best = sp_best_solution(game)
             log_event(ip, session["name"], "slidepuzzle",
-                      f"best_solve:{game['level']}:best={len(best)}:player={game['moves']}")
+                      f"best_solve:{game['level']}:best={len(best)}:player={game['moves']}"
+                      + (":gave_up" if game["gave_up"] else ""))
         self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):
