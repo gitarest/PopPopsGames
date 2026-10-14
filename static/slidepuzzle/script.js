@@ -72,11 +72,39 @@ async function giveUp() {
   if (!confirm("Give up and watch Pop Pop solve it? The computer gets a point.")) return;
   const before = state.tiles.slice();
   timer.stop();
-  state = await postJSON("/slidepuzzle/give_up", {});
+  showThinking();
+  const run = solveRun;
+  const resp = await postJSON("/slidepuzzle/give_up", {});
+  if (run !== solveRun) return;  // New Game was pressed while waiting
+  state = resp;
   if (state.solution && state.solution.length) {
     await playSolution(before, state.solution, state.size);
   }
   render(state);
+}
+
+// After a win: replay the best solve of the same starting board, then
+// compare its move count with the player's.
+async function bestSolve() {
+  if (!state || !state.won) return;
+  if (!state.best_solution) {
+    showThinking();
+    const run = solveRun;
+    const resp = await postJSON("/slidepuzzle/best_solve", {});
+    if (run !== solveRun) return;  // New Game was pressed while waiting
+    state = resp;
+  }
+  if (state.best_solution && state.start_tiles) {
+    await playSolution(state.start_tiles.slice(), state.best_solution, state.size);
+  }
+  render(state);
+}
+
+function showThinking() {
+  els.giveUp.disabled = true;
+  els.result.className = "result solving";
+  els.result.textContent = "🤖 Pop Pop is thinking…";
+  els.result.hidden = false;
 }
 
 // Replay the server's solution one tile at a time. Long solutions (Hard can
@@ -89,6 +117,8 @@ async function playSolution(tiles, clicks, size) {
   els.result.className = "result solving";
   els.result.hidden = false;
   const blank = size * size - 1;
+  placeTiles(tiles, size, false);  // jump back to the starting board
+  els.result.textContent = `🤖 Solving… 0 / ${clicks.length} moves`;
   for (let step = 0; step < clicks.length; step++) {
     await new Promise(r => setTimeout(r, delay));
     if (run !== solveRun) break;  // New Game was pressed
@@ -208,6 +238,12 @@ function placeTiles(tiles, size, done) {
   els.board.classList.toggle("done", done);
 }
 
+function compareText(yours, best) {
+  if (yours < best)   return `🏆 You: ${yours} moves vs Best Solve: ${best}. You beat Pop Pop!`;
+  if (yours === best) return `🌟 You: ${yours} moves vs Best Solve: ${best}. A perfect solve!`;
+  return `You: ${yours} moves vs Best Solve: ${best} moves`;
+}
+
 function render(s) {
   buildLevelToggle(s.levels);
   els.levelToggle.querySelectorAll(".level-btn").forEach(btn => {
@@ -223,13 +259,16 @@ function render(s) {
   els.moves.textContent = s.moves;
   els.scorePlayer.textContent = s.score.player;
   els.scoreComp.textContent   = s.score.hangman;
-  els.giveUp.disabled = s.over;
+  // Give Up becomes Best Solve once the player has solved it themselves.
+  els.giveUp.textContent = s.won ? "Best Solve" : "Give Up";
+  els.giveUp.disabled = s.over && !s.won;
 
   if (s.over) {
     timer.stop();
     const secs = timer.elapsedSeconds();
     els.result.textContent = s.won
       ? `🎉 You did it in ${s.moves} moves${secs ? " and " + timer.formatTime(secs) : ""}!`
+        + (s.best_solution ? "\n" + compareText(s.moves, s.best_solution.length) : "")
       : s.solution
         ? `🤖 Solved in ${s.solution.length} moves. Try another one!`
         : "Here's the picture. Try another one!";
@@ -330,7 +369,7 @@ els.nameInput.addEventListener("keydown", e => {
 // ---------------------------------------------------------------------------
 
 els.newGame.addEventListener("click", () => newGame(state?.level));
-els.giveUp.addEventListener("click", giveUp);
+els.giveUp.addEventListener("click", () => (state?.won ? bestSolve() : giveUp()));
 
 // ---------------------------------------------------------------------------
 // Boot

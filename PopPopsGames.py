@@ -120,6 +120,7 @@ from slidepuzzle import (
     new_game as sp_new_game,
     move as sp_move,
     give_up as sp_give_up,
+    best_solution as sp_best_solution,
     game_state as sp_game_state,
     pick_image as sp_pick_image,
     LEVEL_POINTS as SP_LEVEL_POINTS,
@@ -1143,6 +1144,8 @@ class HangmanHandler(BaseHTTPRequestHandler):
             self.handle_sp_move()
         elif self.path == "/slidepuzzle/give_up":
             self.handle_sp_give_up()
+        elif self.path == "/slidepuzzle/best_solve":
+            self.handle_sp_best_solve()
         else:
             self.send_error(404, "Not found")
 
@@ -1749,6 +1752,18 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if "sp_game" not in session:
             sp_build_payload(session, ip)
         sp_give_up(session["sp_game"])
+        self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
+
+    def handle_sp_best_solve(self):
+        sid, session, is_new = self.get_session()
+        ip = self.get_client_ip()
+        if "sp_game" not in session:
+            sp_build_payload(session, ip)
+        game = session["sp_game"]
+        if game["won"] and game.get("best_solution") is None:
+            best = sp_best_solution(game)
+            log_event(ip, session["name"], "slidepuzzle",
+                      f"best_solve:{game['level']}:best={len(best)}:player={game['moves']}")
         self.send_json(sp_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def log_message(self, fmt, *args):

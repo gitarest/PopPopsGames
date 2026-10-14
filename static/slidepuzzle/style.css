@@ -216,6 +216,7 @@ h1 {
   font-weight: 600;
   padding: 10px 20px;
   text-align: center;
+  white-space: pre-line;
   width: 100%;
 }
 .result.win  { color: var(--correct); }
