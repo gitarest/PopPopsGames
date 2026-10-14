@@ -270,7 +270,8 @@ function render(s) {
       ? `🎉 You did it in ${s.moves} moves${secs ? " and " + timer.formatTime(secs) : ""}!`
         + (s.best_solution ? "\n" + compareText(s.moves, s.best_solution.length) : "")
       : s.solution
-        ? `🤖 Solved in ${s.solution.length} moves from where you left off.`
+        ? `🤖 Solved in ${s.solution.length} moves from where you left off - `
+          + `${s.moves + s.solution.length} Moves Total`
           + (s.best_solution
             ? `\nBest Solve from the start: ${s.best_solution.length} moves`
             : "\nTap Best Solve to see the best way from the start.")
