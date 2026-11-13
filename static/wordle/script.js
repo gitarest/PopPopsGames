@@ -13,6 +13,7 @@ const els = {
   hints:       document.getElementById("hints"),
   hintsTitle:  document.getElementById("hints-title"),
   hintsList:   document.getElementById("hints-list"),
+  hintsClose:  document.getElementById("hints-close"),
   nameBtn:     document.getElementById("name-btn"),
   nameInput:   document.getElementById("name-input"),
   nameList:    document.getElementById("name-list"),
@@ -26,6 +27,7 @@ timer.armAutoStart();
 
 let state = null;
 let currentInput = [];   // letters typed into the current row
+let hintWord = null;     // word picked from Hints; counts only if guessed unchanged
 
 // ---- Build board and keyboard on page load ----
 
@@ -166,7 +168,11 @@ function render(s) {
   statusEl.className = "status";
   if (s.phase === "won") {
     timer.stop();
-    statusEl.textContent = `You got it in ${s.attempts} ${s.attempts === 1 ? "guess" : "guesses"}! 🎉`;
+    const hintsUsed = s.hints_used || 0;
+    statusEl.textContent =
+      `You got it in ${s.attempts} ${s.attempts === 1 ? "guess" : "guesses"}! 🎉 ` +
+      `+${s.points} point${s.points === 1 ? "" : "s"}` +
+      (hintsUsed ? ` (💡 ${hintsUsed} hint${hintsUsed === 1 ? "" : "s"} used, −${hintsUsed})` : "");
     statusEl.classList.add("win");
     currentInput = [];
   } else if (s.phase === "lost") {
@@ -238,7 +244,7 @@ async function submitGuess() {
   const word = currentInput.join("");
   const saved = [...currentInput];
   currentInput = [];
-  const s = await postJSON("/wordle/guess", { word });
+  const s = await postJSON("/wordle/guess", { word, hint: word === hintWord });
   if (s.invalid_guess) {
     currentInput = saved;
     shakeCurrentRow();
@@ -247,6 +253,7 @@ async function submitGuess() {
     els.status.className = "status";
     return;
   }
+  hintWord = null;
   render(s);
 }
 
@@ -265,6 +272,7 @@ async function postJSON(url, body) {
 
 document.addEventListener("keydown", e => {
   if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.key === "Escape" && !els.hints.hidden) { hideHints(); return; }
   if (e.key === "Backspace") { e.preventDefault(); handleKey("Backspace"); }
   else if (e.key === "Enter") { e.preventDefault(); handleKey("Enter"); }
   else if (/^[A-Za-z]$/.test(e.key)) handleKey(e.key);
@@ -280,6 +288,7 @@ function hideHints() {
 }
 
 function pickHint(word) {
+  hintWord = word;
   currentInput = word.split("");
   renderCurrentRow();
   hideHints();
@@ -309,10 +318,13 @@ els.btnHints.addEventListener("click", async () => {
   els.hints.hidden = false;
 });
 
+els.hintsClose.addEventListener("click", hideHints);
+
 // ---- New game ----
 
 els.btnNew.addEventListener("click", async () => {
   currentInput = [];
+  hintWord = null;
   timer.reset();
   const s = await postJSON("/wordle/new", {});
   render(s);

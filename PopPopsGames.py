@@ -65,6 +65,7 @@ from wordle import (
     game_state as wl_game_state,
     guess as wl_guess,
     hints as wl_hints,
+    win_points as wl_win_points,
     MAX_GUESSES as MAX_WORDLE_GUESSES,
 )
 from memory import (
@@ -555,7 +556,8 @@ def wl_apply_score(session, ip=None):
     score = active_score(session, "wordle")
     if game["phase"] == "won":
         tries = len(game["guesses"])
-        pts = 7 - tries  # 6 pts for 1-guess win, 1 pt for 6-guess win
+        pts = wl_win_points(tries, game.get("hints_used", 0))
+        # Guess history records the real number of guesses, hints or not.
         score["player"] += pts
         record_wordle_win(session["name"] or "Guest", tries)
         log_event(ip, session["name"], "wordle", f"win:{tries}_guesses")
@@ -1425,7 +1427,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if not session["wl_game"].get("start_logged"):
             log_event(ip, session["name"], "wordle", "start")
             session["wl_game"]["start_logged"] = True
-        wl_guess(session["wl_game"], word)
+        wl_guess(session["wl_game"], word, hint=data.get("hint") is True)
         self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_wl_hints(self):

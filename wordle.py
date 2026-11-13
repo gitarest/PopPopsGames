@@ -10,6 +10,12 @@ WORD_LENGTH = 5
 _VALID = set(WORDS) | set(VALID_GUESSES)
 
 
+def win_points(tries, hints_used=0):
+    """6 points for a 1-guess win down to 1 point for a 6-guess win, minus 1
+    for each hint used (never below 0)."""
+    return max(0, MAX_GUESSES + 1 - tries - hints_used)
+
+
 def new_game():
     return {
         "word":          random.choice(WORDS),
@@ -19,11 +25,14 @@ def new_game():
         "scored":        False,
         "start_logged":  False,
         "invalid_guess": False,
+        "hints_used":    0,    # guesses submitted straight from the Hints list
     }
 
 
-def guess(game, word):
-    """Submit a guess. Returns False if the word is not in the valid word list."""
+def guess(game, word, hint=False):
+    """Submit a guess. Returns False if the word is not in the valid word list.
+    `hint` marks a word picked from the Hints list; only those count as hints
+    used (just opening the list, or picking then changing it, doesn't)."""
     game["invalid_guess"] = False
     if game["over"] or game["phase"] != "play":
         return True
@@ -35,6 +44,8 @@ def guess(game, word):
         return False
     result = _score_guess(word, game["word"])
     game["guesses"].append({"word": word, "result": result})
+    if hint:
+        game["hints_used"] = game.get("hints_used", 0) + 1
     if all(r == "correct" for r in result):
         game["phase"] = "won"
         game["over"]  = True
@@ -91,4 +102,7 @@ def game_state(game):
         "max_guesses":   MAX_GUESSES,
         "letter_states": letter_states,
         "invalid_guess": game.get("invalid_guess", False),
+        "hints_used":    game.get("hints_used", 0),
+        "points":        (win_points(len(game["guesses"]), game.get("hints_used", 0))
+                          if game["phase"] == "won" else 0),
     }
