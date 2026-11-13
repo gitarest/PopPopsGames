@@ -242,6 +242,44 @@ h1 {
 }
 .action-btn:hover  { opacity: 0.85; }
 .action-btn:active { transform: scale(0.97); }
+.action-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
+/* ---- Hints picker ---- */
+.hints {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--key-hover);
+  border-radius: var(--radius);
+  padding: 0.6rem;
+}
+.hints[hidden] { display: none; }
+.hints-title {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: center;
+  margin: 0 0 0.5rem;
+}
+.hints-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.35rem;
+  max-height: 11rem;
+  overflow-y: auto;
+}
+.hint-word {
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--tile-border);
+  border-radius: var(--radius);
+  background: var(--key-bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+.hint-word:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---- Shake animation for short guesses ---- */
 @keyframes shake {

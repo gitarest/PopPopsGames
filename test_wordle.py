@@ -282,6 +282,49 @@ class TestWLScoring(IsolatedScores):
         self.assertEqual(server.wordle_guess_history("Guest")["1"], 2)
 
 
+
+class TestWLHints(unittest.TestCase):
+
+    def _game(self, answer, *guesses):
+        g = wordle.new_game()
+        g["word"] = answer
+        for w in guesses:
+            wordle.guess(g, w)
+        return g
+
+    def test_no_hints_before_first_guess(self):
+        self.assertEqual(wordle.hints(self._game("CRANE")), [])
+
+    def test_no_hints_after_game_over(self):
+        self.assertEqual(wordle.hints(self._game("CRANE", "CRANE")), [])
+
+    def test_answer_is_always_a_hint(self):
+        g = self._game("CRANE", "SLOTH", "ABOUT")
+        self.assertIn("CRANE", wordle.hints(g))
+
+    def test_every_hint_fits_every_guess(self):
+        g = self._game("CRANE", "SLATE", "BRAND")
+        hints = wordle.hints(g)
+        self.assertTrue(hints)
+        for w in hints:
+            for prev in g["guesses"]:
+                self.assertEqual(wordle._score_guess(prev["word"], w), prev["result"])
+
+    def test_hints_exclude_words_that_dont_fit(self):
+        g = self._game("CRANE", "SLATE")      # S, L, T absent; A, E correct
+        hints = wordle.hints(g)
+        self.assertNotIn("SLATE", hints)
+        for w in hints:
+            self.assertNotIn("S", w)
+            self.assertEqual(w[2], "A")
+            self.assertEqual(w[4], "E")
+
+    def test_hints_are_sorted_answer_words(self):
+        hints = wordle.hints(self._game("CRANE", "SLOTH"))
+        self.assertEqual(hints, sorted(hints))
+        self.assertTrue(set(hints) <= set(wordle.WORDS))
+
+
 # ---------------------------------------------------------------------------
 # End-to-end API
 # ---------------------------------------------------------------------------
@@ -377,6 +420,18 @@ class TestWLApi(IsolatedScores):
         ga["word"] = "CRANE"
         st_b = b.call("/wordle/state")
         self.assertNotEqual(st_b.get("word"), "CRANE")
+
+    def test_hints_via_api(self):
+        c = self.client()
+        c.call("/wordle/new", {})
+        self.assertEqual(c.call("/wordle/hints")["count"], 0)
+        g = server.SESSIONS[c.sid()]["wl_game"]
+        g["word"] = "CRANE"
+        c.call("/wordle/guess", {"word": "SLOTH"})
+        res = c.call("/wordle/hints")
+        self.assertIn("CRANE", res["words"])
+        self.assertEqual(res["count"], len(res["words"]))
+        self.assertEqual(server.SESSIONS[c.sid()]["wl_game"]["guesses"][0]["word"], "SLOTH")
 
 
 if __name__ == "__main__":
