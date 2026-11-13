@@ -36,6 +36,12 @@
     <!-- Status message -->
     <p id="status" class="status"></p>
 
+    <!-- Hint word picker (opened by the Hints button) -->
+    <section id="hints" class="hints" aria-label="Words that fit" hidden>
+      <p id="hints-title" class="hints-title"></p>
+      <div id="hints-list" class="hints-list"></div>
+    </section>
+
     <!-- On-screen keyboard -->
     <div id="keyboard" class="keyboard">
       <div class="kb-row" data-row="QWERTYUIOP"></div>
@@ -54,6 +60,8 @@
     </div>
 
     <div class="actions">
+      <button id="btn-hints" class="action-btn secondary" disabled
+              title="Make a guess first">💡 Hints</button>
       <button id="btn-new" class="action-btn secondary">New Game</button>
     </div>
 

@@ -9,6 +9,10 @@ const els = {
   scorePlayer: document.getElementById("score-player"),
   scoreHangman:document.getElementById("score-hangman"),
   btnNew:      document.getElementById("btn-new"),
+  btnHints:    document.getElementById("btn-hints"),
+  hints:       document.getElementById("hints"),
+  hintsTitle:  document.getElementById("hints-title"),
+  hintsList:   document.getElementById("hints-list"),
   nameBtn:     document.getElementById("name-btn"),
   nameInput:   document.getElementById("name-input"),
   nameList:    document.getElementById("name-list"),
@@ -152,6 +156,11 @@ function render(s) {
     }
   });
 
+  // Hints need at least one guess to narrow things down
+  els.btnHints.disabled = s.over || s.attempts === 0;
+  els.btnHints.title = s.attempts === 0 ? "Make a guess first" : "Show words that fit";
+  hideHints();
+
   // Status
   const statusEl = els.status;
   statusEl.className = "status";
@@ -259,6 +268,45 @@ document.addEventListener("keydown", e => {
   if (e.key === "Backspace") { e.preventDefault(); handleKey("Backspace"); }
   else if (e.key === "Enter") { e.preventDefault(); handleKey("Enter"); }
   else if (/^[A-Za-z]$/.test(e.key)) handleKey(e.key);
+});
+
+// ---- Hints ----
+
+const MAX_HINTS_SHOWN = 100;
+
+function hideHints() {
+  els.hints.hidden = true;
+  els.hintsList.innerHTML = "";
+}
+
+function pickHint(word) {
+  currentInput = word.split("");
+  renderCurrentRow();
+  hideHints();
+  els.status.textContent = "Press Enter to guess " + word;
+  els.status.className = "status";
+}
+
+els.btnHints.addEventListener("click", async () => {
+  if (!els.hints.hidden) { hideHints(); return; }   // second tap closes it
+  const res = await (await fetch("/wordle/hints")).json();
+  els.hintsList.innerHTML = "";
+  if (res.count === 0) {
+    els.hintsTitle.textContent = "No words in my list fit — try your own!";
+  } else {
+    const shown = res.words.slice(0, MAX_HINTS_SHOWN);
+    els.hintsTitle.textContent =
+      `${res.count} word${res.count === 1 ? " fits" : "s fit"} — tap one to use it` +
+      (res.count > shown.length ? ` (showing ${shown.length})` : "");
+    shown.forEach(w => {
+      const btn = document.createElement("button");
+      btn.className = "hint-word";
+      btn.textContent = w;
+      btn.addEventListener("click", () => pickHint(w));
+      els.hintsList.appendChild(btn);
+    });
+  }
+  els.hints.hidden = false;
 });
 
 // ---- New game ----

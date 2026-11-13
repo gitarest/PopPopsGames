@@ -63,6 +63,17 @@ def _score_guess(guess_word, answer):
     return result
 
 
+def hints(game):
+    """Answer-list words that fit every guess so far — i.e. a word that, had
+    it been the answer, would have produced exactly the same colours. Empty
+    before the first guess (everything fits) and once the game is over."""
+    if game["over"] or not game["guesses"]:
+        return []
+    return sorted(w for w in WORDS
+                  if all(_score_guess(g["word"], w) == g["result"]
+                         for g in game["guesses"]))
+
+
 def game_state(game):
     # Build per-letter keyboard state: best state seen for each letter
     letter_states = {}
