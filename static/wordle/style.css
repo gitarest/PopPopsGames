@@ -253,7 +253,23 @@ h1 {
   padding: 0.6rem;
 }
 .hints[hidden] { display: none; }
+.hints { position: relative; }
+.hints-close {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.3rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.hints-close:hover { background: var(--key-bg); color: var(--text); }
 .hints-title {
+  padding: 0 1.8rem;
   font-size: 0.85rem;
   color: var(--muted);
   text-align: center;
