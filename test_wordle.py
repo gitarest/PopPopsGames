@@ -319,13 +319,14 @@ class TestWLHints(unittest.TestCase):
             self.assertEqual(w[2], "A")
             self.assertEqual(w[4], "E")
 
-    def test_hints_used_counts_only_hinted_guesses(self):
-        g = self._game("CRANE")
-        wordle.guess(g, "SLOTH")
-        wordle.hints(g)                       # just looking costs nothing
-        self.assertEqual(g["hints_used"], 0)
-        wordle.guess(g, "BRAND", hint=True)
-        wordle.guess(g, "CRANE", hint=True)
+    def test_showing_hints_counts_once_per_row(self):
+        g = self._game("CRANE", "SLOTH")
+        wordle.hints(g)                       # seeing the list costs a hint
+        wordle.hints(g)                       # reopening on the same row doesn't
+        self.assertEqual(g["hints_used"], 1)
+        wordle.guess(g, "BRAND")              # typed, not picked — still counted
+        wordle.hints(g)
+        wordle.guess(g, "CRANE")
         st = wordle.game_state(g)
         self.assertEqual(st["hints_used"], 2)
         self.assertEqual(st["points"], 2)     # won in 3 (4 pts) minus 2 hints
@@ -334,9 +335,12 @@ class TestWLHints(unittest.TestCase):
         self.assertEqual(wordle.win_points(6, 3), 0)
         self.assertEqual(wordle.win_points(2), 5)
 
-    def test_invalid_hinted_guess_not_counted(self):
+    def test_no_charge_when_hints_unavailable(self):
         g = self._game("CRANE")
-        wordle.guess(g, "CHEND", hint=True)
+        wordle.hints(g)                       # before the first guess
+        self.assertEqual(g["hints_used"], 0)
+        wordle.guess(g, "CRANE")
+        wordle.hints(g)                       # after the game is over
         self.assertEqual(g["hints_used"], 0)
 
     def test_points_zero_until_won(self):
@@ -457,13 +461,14 @@ class TestWLApi(IsolatedScores):
         self.assertEqual(res["count"], len(res["words"]))
         self.assertEqual(server.SESSIONS[c.sid()]["wl_game"]["guesses"][0]["word"], "SLOTH")
 
-    def test_hint_flag_counted_and_points_match_score(self):
+    def test_shown_hint_counted_and_points_match_score(self):
         c = self.client()
         c.call("/wordle/new", {})
         server.SESSIONS[c.sid()]["wl_game"]["word"] = "CRANE"
         c.call("/wordle/guess", {"word": "SLOTH"})
         c.call("/wordle/hints")
-        st = c.call("/wordle/guess", {"word": "CRANE", "hint": True})
+        c.call("/wordle/hints")                        # same row: no extra charge
+        st = c.call("/wordle/guess", {"word": "CRANE"})  # typed by hand
         self.assertEqual(st["hints_used"], 1)
         self.assertEqual(st["points"], 4)              # 5 for 2 guesses, -1 hint
         self.assertEqual(st["score"]["player"], 4)
