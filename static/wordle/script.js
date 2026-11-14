@@ -300,17 +300,33 @@ els.btnHints.addEventListener("click", async () => {
   if (res.count === 0) {
     els.hintsTitle.textContent = "No words in my list fit — try your own!";
   } else {
-    const shown = res.words.slice(0, MAX_HINTS_SHOWN);
+    // Best picks first (in rank order), then everything else A–Z
+    const best = res.best || [];
+    const rest = res.words.filter(w => !best.includes(w));
+    const shown = rest.slice(0, MAX_HINTS_SHOWN);
+    const total = best.length + shown.length;
     els.hintsTitle.textContent =
       `💡 −1 point · ${res.count} word${res.count === 1 ? " fits" : "s fit"} — tap one to use it` +
-      (res.count > shown.length ? ` (showing ${shown.length})` : "");
-    shown.forEach(w => {
+      (res.count > total ? ` (showing ${total})` : "");
+    const addWord = (w, cls) => {
       const btn = document.createElement("button");
-      btn.className = "hint-word";
+      btn.className = "hint-word" + (cls ? " " + cls : "");
       btn.textContent = w;
       btn.addEventListener("click", () => pickHint(w));
       els.hintsList.appendChild(btn);
-    });
+    };
+    const addLabel = text => {
+      const label = document.createElement("p");
+      label.className = "hints-label";
+      label.textContent = text;
+      els.hintsList.appendChild(label);
+    };
+    if (best.length) {
+      addLabel("⭐ Best picks");
+      best.forEach(w => addWord(w, "best"));
+      if (shown.length) addLabel("All the others");
+    }
+    shown.forEach(w => addWord(w));
   }
   els.hints.hidden = false;
 });

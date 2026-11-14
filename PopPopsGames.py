@@ -65,6 +65,7 @@ from wordle import (
     game_state as wl_game_state,
     guess as wl_guess,
     hints as wl_hints,
+    rank_hints as wl_rank_hints,
     win_points as wl_win_points,
     MAX_GUESSES as MAX_WORDLE_GUESSES,
 )
@@ -1434,8 +1435,11 @@ class HangmanHandler(BaseHTTPRequestHandler):
         sid, session, is_new = self.get_session()
         if "wl_game" not in session:
             session["wl_game"] = wl_new_game()
-        words = wl_hints(session["wl_game"])
-        self.send_json({"words": words, "count": len(words)}, sid=sid, set_cookie=is_new)
+        game = session["wl_game"]
+        words = wl_hints(game)
+        best = wl_rank_hints(words, game["guesses"]) if len(words) > 1 else []
+        self.send_json({"words": words, "best": best, "count": len(words)},
+                       sid=sid, set_cookie=is_new)
 
     def handle_memory_new(self):
         sid, session, is_new = self.get_session()

@@ -90,6 +90,28 @@ def hints(game):
                          for g in game["guesses"]))
 
 
+COMMON_LETTERS = set("RSTLNAEIOU")
+BEST_PICKS = 5
+
+
+def rank_hints(words, guesses, n=BEST_PICKS):
+    """The `n` hint words that make the most useful next guess.
+
+    A word scores for each letter it would test for the first time — 2 for a
+    common letter (R S T L N A E I O U), 1 for any other — since every new
+    letter is either found or ruled out. Words with a repeated letter test
+    fewer letters, so they rank last. Ties go alphabetically.
+    """
+    tried = {ch for g in guesses for ch in g["word"]}
+
+    def key(w):
+        doubles = len(set(w)) < len(w)
+        score = sum(2 if ch in COMMON_LETTERS else 1 for ch in set(w) - tried)
+        return (doubles, -score, w)
+
+    return sorted(words, key=key)[:n]
+
+
 def game_state(game):
     # Build per-letter keyboard state: best state seen for each letter
     letter_states = {}

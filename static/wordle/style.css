@@ -296,6 +296,17 @@ h1 {
   cursor: pointer;
 }
 .hint-word:hover { border-color: var(--accent); color: var(--accent); }
+.hint-word.best { border-color: var(--present); }
+.hints-label {
+  flex-basis: 100%;
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 
 /* ---- Shake animation for short guesses ---- */
 @keyframes shake {

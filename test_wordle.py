@@ -347,6 +347,23 @@ class TestWLHints(unittest.TestCase):
         g = self._game("CRANE", "SLOTH")
         self.assertEqual(wordle.game_state(g)["points"], 0)
 
+    def test_rank_puts_double_letters_last(self):
+        best = wordle.rank_hints(["EERIE", "ALERT", "SPOON"], [], n=3)
+        self.assertEqual(best[-1], "EERIE")      # repeats rank below everything
+        self.assertEqual(best[0], "ALERT")       # 5 new common letters
+
+    def test_rank_prefers_untried_common_letters(self):
+        guesses = [{"word": "SLATE", "result": ["absent"] * 5}]
+        # ROUND tests R, O, U, N (common) + D; CHIMP tests I + C, H, M, P
+        self.assertEqual(wordle.rank_hints(["CHIMP", "ROUND"], guesses, n=1), ["ROUND"])
+
+    def test_rank_returns_at_most_n(self):
+        g = self._game("CRANE", "SLOTH")
+        words = wordle.hints(g)
+        best = wordle.rank_hints(words, g["guesses"])
+        self.assertLessEqual(len(best), wordle.BEST_PICKS)
+        self.assertTrue(set(best) <= set(words))
+
     def test_hints_are_sorted_answer_words(self):
         hints = wordle.hints(self._game("CRANE", "SLOTH"))
         self.assertEqual(hints, sorted(hints))
@@ -458,6 +475,8 @@ class TestWLApi(IsolatedScores):
         c.call("/wordle/guess", {"word": "SLOTH"})
         res = c.call("/wordle/hints")
         self.assertIn("CRANE", res["words"])
+        self.assertTrue(set(res["best"]) <= set(res["words"]))
+        self.assertLessEqual(len(res["best"]), wordle.BEST_PICKS)
         self.assertEqual(res["count"], len(res["words"]))
         self.assertEqual(server.SESSIONS[c.sid()]["wl_game"]["guesses"][0]["word"], "SLOTH")
 
