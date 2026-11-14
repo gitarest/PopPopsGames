@@ -277,6 +277,54 @@ def give_up(game):
     game["gave_up"] = True
 
 
+def _shape(slots):
+    """(d1, d2, d3): digit counts of the first number, second number and result."""
+    counts, part = [0, 0, 0], 0
+    for s in slots:
+        if s["kind"] == "digit":
+            counts[part] += 1
+        else:
+            part += 1 if s["kind"] in ("operator", "equals") else 0
+    return tuple(counts)
+
+
+MAX_SHOWN_SOLUTIONS = 10  # Show Me cycles through at most this many (fewest moves first)
+
+
+def other_solutions(original_slots, max_moves, exclude_slots=None):
+    """Every true equation the puzzle can be turned into with at most
+    `max_moves` stick moves, other than `exclude_slots` (the player's own
+    answer). Fewest moves first. Each item is
+    {"equation": "9-1=8", "moves": [(from_i, from_seg, to_i, to_seg), ...]}."""
+    lit = _segment_set(original_slots)
+    budget = len(lit)
+    d1, d2, d3 = _shape(original_slots)
+    exclude = _segment_set(exclude_slots) if exclude_slots else None
+    found = []
+    for cand_op in ("+", "-"):
+        op_cost = len(OPERATOR_SEGMENTS[cand_op])
+        for a in range(10 ** d1):
+            a_c = str(a).zfill(d1)
+            a_cost = _digits_stick_count(a_c)
+            for b in range(10 ** d2):
+                value = a + b if cand_op == "+" else a - b
+                if value < 0 or value >= 10 ** d3:
+                    continue
+                b_c = str(b).zfill(d2)
+                r_c = str(value).zfill(d3)
+                if a_cost + op_cost + _digits_stick_count(b_c) + _digits_stick_count(r_c) != budget:
+                    continue
+                cand_lit = _segment_set(_build_slots_from_parts(a_c, cand_op, b_c, r_c))
+                if cand_lit == exclude:
+                    continue
+                extra, missing = lit - cand_lit, cand_lit - lit
+                if 0 < len(extra) <= max_moves:
+                    found.append({"equation": f"{a_c}{cand_op}{b_c}={r_c}",
+                                  "moves": _moves_from_reshuffle(extra, missing)})
+    found.sort(key=lambda f: (len(f["moves"]), f["equation"]))
+    return found
+
+
 def move_stick(game, from_index, from_seg, to_index, to_seg):
     if game["over"]:
         return
@@ -302,6 +350,9 @@ def move_stick(game, from_index, from_seg, to_index, to_seg):
     if _equation_true(slots):
         game["over"] = True
         game["won"] = True
+        # Other answers as good as (or better than) the player's, for Show Me.
+        game["other_solutions"] = other_solutions(
+            game["original_slots"], game["moves_used"], exclude_slots=slots)
 
 
 def serialize_slots(slots):
@@ -327,6 +378,14 @@ def game_state(game):
             {"from_index": fi, "from_seg": fs, "to_index": ti, "to_seg": ts}
             for (fi, fs, ti, ts) in game["solution"]
         ] if over else None,
+        "other_solutions": [
+            {"equation": o["equation"],
+             "moves": [{"from_index": fi, "from_seg": fs, "to_index": ti, "to_seg": ts}
+                       for (fi, fs, ti, ts) in o["moves"]]}
+            for o in (game.get("other_solutions") or [])[:MAX_SHOWN_SOLUTIONS]
+        ] if over and game["won"] else [],
+        "other_solutions_count": len(game.get("other_solutions") or [])
+                                 if over and game["won"] else 0,
     }
 
 

@@ -300,7 +300,7 @@ class TestMatchstickGameLogic(unittest.TestCase):
     def test_game_state_includes_expected_fields(self):
         st = ms.game_state(ms.new_game())
         for field in ("slots", "moves_used", "par_moves", "over", "won", "level",
-                      "levels", "original_slots", "solution"):
+                      "levels", "original_slots", "solution", "other_solutions"):
             self.assertIn(field, st)
 
     def test_solution_and_original_hidden_before_over(self):
@@ -407,6 +407,71 @@ class TestMatchstickSolver(unittest.TestCase):
         chars = [ms._decode_slot(s) for s in solved]
         self.assertEqual("".join(chars), "1+2=3")
 
+
+
+class TestMatchstickOtherSolutions(unittest.TestCase):
+
+    def _game(self, text):
+        """A game whose puzzle is `text` (e.g. "9+1=7"), not yet played."""
+        a, op, b, r = ms.parse_custom_equation(text)
+        g = ms.new_game("easy")
+        g["slots"] = ms._build_slots_from_parts(a, op, b, r)
+        g["original_slots"] = ms._copy_slots(g["slots"])
+        return g
+
+    def _play(self, g, moves):
+        for fi, fs, ti, ts in moves:
+            ms.move_stick(g, fi, fs, ti, ts)
+
+    def _text(self, slots):
+        return "".join(ms._decode_slot(s) for s in slots)
+
+    def test_lists_every_other_answer_within_players_moves(self):
+        found = ms.other_solutions(ms._build_slots_from_parts("9", "+", "1", "7"), 1)
+        self.assertEqual([f["equation"] for f in found], ["6+1=7", "8-1=7"])
+
+    def test_each_listed_answer_really_solves_it(self):
+        start = ms._build_slots_from_parts("9", "+", "1", "7")
+        for f in ms.other_solutions(start, 2):
+            slots = apply_moves(start, f["moves"])
+            self.assertTrue(ms._equation_true(slots))
+            self.assertEqual(self._text(slots), f["equation"])
+            self.assertLessEqual(len(f["moves"]), 2)
+
+    def test_win_excludes_players_own_answer(self):
+        g = self._game("9+1=7")
+        # 9 -> 6: move the top-right stick (b) to the bottom-left (e)
+        self._play(g, [(0, "b", 0, "e")])
+        self.assertTrue(g["won"])
+        self.assertEqual(self._text(g["slots"]), "6+1=7")
+        st = ms.game_state(g)
+        self.assertEqual([o["equation"] for o in st["other_solutions"]], ["8-1=7"])
+
+    def test_long_list_capped_but_counted(self):
+        g = self._game("9+1=7")
+        g["moves_used"] = 7                       # a long, wandering solve
+        g["other_solutions"] = ms.other_solutions(g["original_slots"], 7)
+        g["over"] = g["won"] = True
+        st = ms.game_state(g)
+        self.assertGreater(st["other_solutions_count"], ms.MAX_SHOWN_SOLUTIONS)
+        self.assertEqual(len(st["other_solutions"]), ms.MAX_SHOWN_SOLUTIONS)
+        lengths = [len(o["moves"]) for o in st["other_solutions"]]
+        self.assertEqual(lengths, sorted(lengths))  # fewest moves first
+
+    def test_no_others_when_answer_is_unique(self):
+        g = self._game("9+7=1")              # only fix: 8-7=1
+        start = g["original_slots"]
+        only = ms.other_solutions(start, 1)
+        self.assertEqual([f["equation"] for f in only], ["8-7=1"])
+        self._play(g, only[0]["moves"])
+        self.assertTrue(g["won"])
+        self.assertEqual(ms.game_state(g)["other_solutions"], [])
+
+    def test_no_others_shown_before_win_or_after_give_up(self):
+        g = self._game("9+1=7")
+        self.assertEqual(ms.game_state(g)["other_solutions"], [])
+        ms.give_up(g)
+        self.assertEqual(ms.game_state(g)["other_solutions"], [])
 
 # ---------------------------------------------------------------------------
 # Scoring

@@ -5,6 +5,7 @@ let levelsBuilt = false;
 let selected = null;      // {index, seg} of the picked-up stick, or null
 let demoing = false;      // true while a demo loop (Show Me or Solve One For Me) is running
 let demoGeneration = 0;   // bumped whenever a demo loop should be superseded/stopped
+let otherIndex = -1;      // which other solution Show Me is on after a win (-1 = none yet)
 
 // Segment coordinates for each cell kind (standard 7-segment digit layout).
 const DIGIT_COORDS = {
@@ -344,8 +345,30 @@ async function runDemoLoop(originalSlots, solutionMoves, statusText) {
   }
 }
 
+/** Equation text with real minus/equals spacing, e.g. "9-1=8" -> "9 − 1 = 8". */
+function prettyEquation(eq) {
+  return eq.replace(/([+\-=])/g, " $1 ").replace(/-/g, "−");
+}
+
 function showMe() {
-  if (!state || !state.over || !state.solution || state.solution.length === 0) return;
+  if (!state || !state.over) return;
+  if (state.won) {
+    // After a solve: step through the other answers, one per tap.
+    const others = state.other_solutions || [];
+    if (others.length === 0) return;
+    otherIndex = (otherIndex + 1) % others.length;
+    const o = others[otherIndex];
+    const n = o.moves.length;
+    const total = state.other_solutions_count || others.length;
+    const label = others.length === 1 ? "Another way"
+      : `Other way ${otherIndex + 1} of ${others.length}` +
+        (total > others.length ? ` (the ${others.length} shortest of ${total})` : "");
+    runDemoLoop(state.original_slots, o.moves,
+      `${label}: ${prettyEquation(o.equation)} (${n} move${n === 1 ? "" : "s"})` +
+      (others.length > 1 ? " — tap Show Me for the next one." : ""));
+    return;
+  }
+  if (!state.solution || state.solution.length === 0) return;
   runDemoLoop(state.original_slots, state.solution);
 }
 
@@ -383,7 +406,17 @@ function render(s) {
 
   renderEquationOnly();
 
-  els.showMe.classList.toggle("actions-inactive", !s.over);
+  // Show Me: after giving up it replays the answer; after a solve it only
+  // appears when there's another answer as good as (or better than) yours.
+  const others = s.won ? (s.other_solutions || []) : [];
+  const othersTotal = s.won ? (s.other_solutions_count || others.length) : 0;
+  const showMeAvailable = s.over && (s.gave_up || others.length > 0);
+  els.showMe.classList.toggle("actions-inactive", !showMeAvailable);
+  els.showMe.setAttribute("aria-hidden", showMeAvailable ? "false" : "true");
+  els.showMe.textContent = othersTotal
+    ? `Show Me (${othersTotal} other way${othersTotal === 1 ? "" : "s"})`
+    : "Show Me";
+  if (!s.over) otherIndex = -1;
 
   if (s.over) {
     els.status.textContent = "";
@@ -392,9 +425,13 @@ function render(s) {
       els.result.className = "result";
     } else {
       const onPar = s.moves_used <= s.par_moves;
-      els.result.textContent = onPar
+      const extra = othersTotal === 0 ? ""
+        : othersTotal === 1 ? " There's 1 other way to solve it — tap Show Me."
+        : ` There are ${othersTotal} other ways to solve it — tap Show Me` +
+          (othersTotal > others.length ? ` to see the ${others.length} shortest.` : ".");
+      els.result.textContent = (onPar
         ? `🎉 Fixed it in ${s.moves_used} move${s.moves_used === 1 ? "" : "s"} — nice!`
-        : `Fixed it in ${s.moves_used} moves. The goal was ${s.par_moves} — try New Game for another shot!`;
+        : `Fixed it in ${s.moves_used} moves. The goal was ${s.par_moves} — try New Game for another shot!`) + extra;
       els.result.className = "result win";
     }
     els.result.hidden = false;
