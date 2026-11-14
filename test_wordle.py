@@ -204,6 +204,35 @@ class TestWLScoring(IsolatedScores):
         sess["wl_game"] = g
         return sess
 
+    def test_loss_recorded_as_seven_in_history(self):
+        server.wl_apply_score(self._make_lost("Zoe"))
+        self.assertEqual(server.WORDLE_GUESSES["Zoe"]["7"], 1)
+        self.assertNotIn("7", server.wordle_guess_history("Zoe"))  # bars stay 1-6
+
+    def test_guess_stats_average_and_pct_solved(self):
+        for n in (2, 3, 4):
+            server.wl_apply_score(self._make_won("Zoe", attempts=n))
+        server.wl_apply_score(self._make_lost("Zoe"))
+        st = server.wordle_guess_stats("Zoe")
+        self.assertEqual(st["played"], 4)
+        self.assertEqual(st["avg"], 4.0)          # (2 + 3 + 4 + 7) / 4
+        self.assertEqual(st["pct_solved"], 75)
+
+    def test_guess_stats_empty(self):
+        self.assertEqual(server.wordle_guess_stats("Nobody"),
+                         {"played": 0, "avg": None, "pct_solved": None})
+
+    def test_backfill_seeds_losses_once(self):
+        import sqlite3
+        db = sqlite3.connect(self._db_path)
+        db.execute("INSERT INTO scores (player, game, won, lost) VALUES ('Zoe','wordle',10,3)")
+        db.commit()
+        server._backfill_wordle_losses(db)
+        server._backfill_wordle_losses(db)     # second run must not add more
+        rows = db.execute("SELECT count FROM wordle_guesses WHERE player='Zoe' AND tries=7").fetchall()
+        db.close()
+        self.assertEqual(rows, [(3,)])
+
     def test_win_one_guess_gives_six_points(self):
         sess = self._make_won(attempts=1)
         server.wl_apply_score(sess)
@@ -398,7 +427,8 @@ class TestWLApi(IsolatedScores):
         st = self.client().call("/wordle/state")
         for f in ("guesses", "phase", "over", "word", "attempts",
                   "max_guesses", "letter_states", "invalid_guess",
-                  "score", "total_score", "names", "guess_history"):
+                  "score", "total_score", "names", "guess_history",
+                  "guess_stats", "hints_used", "points"):
             self.assertIn(f, st)
 
     def test_guess_history_updates_after_win_via_api(self):

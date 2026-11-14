@@ -211,9 +211,25 @@ def init_db():
                 os.rename(SCORES_FILE, SCORES_FILE + ".migrated")
             except (OSError, ValueError):
                 pass
+        _backfill_wordle_losses(db)
         db.close()
     except sqlite3.DatabaseError:
         pass
+
+
+def _backfill_wordle_losses(db):
+    """One-time: guess history used to record wins only. Seed each player's
+    no-solve row (tries = MAX_GUESSES + 1) from their Wordle loss count.
+    Runs only while no no-solve rows exist, so it never double-counts."""
+    no_solve = MAX_WORDLE_GUESSES + 1
+    if db.execute("SELECT 1 FROM wordle_guesses WHERE tries = ? LIMIT 1",
+                  (no_solve,)).fetchone():
+        return
+    db.execute(
+        """INSERT INTO wordle_guesses (player, tries, count)
+           SELECT player, ?, lost FROM scores WHERE game = 'wordle' AND lost > 0""",
+        (no_solve,))
+    db.commit()
 
 
 def _migrate_scores_json(db, data):
@@ -316,6 +332,28 @@ def record_wordle_win(player, tries):
         db.close()
     except sqlite3.DatabaseError:
         pass
+
+
+def record_wordle_loss(player):
+    """A no-solve goes in the guess history as MAX_GUESSES + 1 tries."""
+    record_wordle_win(player, MAX_WORDLE_GUESSES + 1)
+
+
+def wordle_guess_stats(player):
+    """Average guesses (a no-solve counts as MAX_GUESSES + 1) and % solved."""
+    counts = WORDLE_GUESSES.get(player, {})
+    played = solved = total = 0
+    for n in range(1, MAX_WORDLE_GUESSES + 2):
+        c = counts.get(str(n), 0)
+        played += c
+        total += n * c
+        if n <= MAX_WORDLE_GUESSES:
+            solved += c
+    if not played:
+        return {"played": 0, "avg": None, "pct_solved": None}
+    return {"played": played,
+            "avg": round(total / played, 2),
+            "pct_solved": round(100 * solved / played)}
 
 
 def wordle_guess_history(player):
@@ -564,6 +602,7 @@ def wl_apply_score(session, ip=None):
         log_event(ip, session["name"], "wordle", f"win:{tries}_guesses")
     else:
         score["hangman"] += 1
+        record_wordle_loss(session["name"] or "Guest")
         log_event(ip, session["name"], "wordle", "loss")
     game["scored"] = True
     save_scores()
@@ -581,6 +620,7 @@ def wl_build_payload(session, ip=None):
         "total_score":   total_score(session),
         "names":         sorted(n for n in SCORES if n != "Guest"),
         "guess_history": wordle_guess_history(session["name"] or "Guest"),
+        "guess_stats":   wordle_guess_stats(session["name"] or "Guest"),
     }
 
 
