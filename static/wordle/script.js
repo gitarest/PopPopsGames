@@ -27,7 +27,6 @@ timer.armAutoStart();
 
 let state = null;
 let currentInput = [];   // letters typed into the current row
-let hintWord = null;     // word picked from Hints; counts only if guessed unchanged
 
 // ---- Build board and keyboard on page load ----
 
@@ -160,7 +159,7 @@ function render(s) {
 
   // Hints need at least one guess to narrow things down
   els.btnHints.disabled = s.over || s.attempts === 0;
-  els.btnHints.title = s.attempts === 0 ? "Make a guess first" : "Show words that fit";
+  els.btnHints.title = s.attempts === 0 ? "Make a guess first" : "Show words that fit (−1 point)";
   hideHints();
 
   // Status
@@ -244,7 +243,7 @@ async function submitGuess() {
   const word = currentInput.join("");
   const saved = [...currentInput];
   currentInput = [];
-  const s = await postJSON("/wordle/guess", { word, hint: word === hintWord });
+  const s = await postJSON("/wordle/guess", { word });
   if (s.invalid_guess) {
     currentInput = saved;
     shakeCurrentRow();
@@ -253,7 +252,6 @@ async function submitGuess() {
     els.status.className = "status";
     return;
   }
-  hintWord = null;
   render(s);
 }
 
@@ -288,7 +286,6 @@ function hideHints() {
 }
 
 function pickHint(word) {
-  hintWord = word;
   currentInput = word.split("");
   renderCurrentRow();
   hideHints();
@@ -305,7 +302,7 @@ els.btnHints.addEventListener("click", async () => {
   } else {
     const shown = res.words.slice(0, MAX_HINTS_SHOWN);
     els.hintsTitle.textContent =
-      `${res.count} word${res.count === 1 ? " fits" : "s fit"} — tap one to use it` +
+      `💡 −1 point · ${res.count} word${res.count === 1 ? " fits" : "s fit"} — tap one to use it` +
       (res.count > shown.length ? ` (showing ${shown.length})` : "");
     shown.forEach(w => {
       const btn = document.createElement("button");
@@ -324,7 +321,6 @@ els.hintsClose.addEventListener("click", hideHints);
 
 els.btnNew.addEventListener("click", async () => {
   currentInput = [];
-  hintWord = null;
   timer.reset();
   const s = await postJSON("/wordle/new", {});
   render(s);

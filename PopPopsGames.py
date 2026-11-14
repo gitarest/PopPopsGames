@@ -1427,7 +1427,7 @@ class HangmanHandler(BaseHTTPRequestHandler):
         if not session["wl_game"].get("start_logged"):
             log_event(ip, session["name"], "wordle", "start")
             session["wl_game"]["start_logged"] = True
-        wl_guess(session["wl_game"], word, hint=data.get("hint") is True)
+        wl_guess(session["wl_game"], word)
         self.send_json(wl_build_payload(session, ip), sid=sid, set_cookie=is_new)
 
     def handle_wl_hints(self):

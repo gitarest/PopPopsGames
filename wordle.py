@@ -25,14 +25,13 @@ def new_game():
         "scored":        False,
         "start_logged":  False,
         "invalid_guess": False,
-        "hints_used":    0,    # guesses submitted straight from the Hints list
+        "hints_used":    0,    # rows on which the Hints list was shown
+        "hint_rows":     [],   # guess numbers already charged for a hint
     }
 
 
-def guess(game, word, hint=False):
-    """Submit a guess. Returns False if the word is not in the valid word list.
-    `hint` marks a word picked from the Hints list; only those count as hints
-    used (just opening the list, or picking then changing it, doesn't)."""
+def guess(game, word):
+    """Submit a guess. Returns False if the word is not in the valid word list."""
     game["invalid_guess"] = False
     if game["over"] or game["phase"] != "play":
         return True
@@ -44,8 +43,6 @@ def guess(game, word, hint=False):
         return False
     result = _score_guess(word, game["word"])
     game["guesses"].append({"word": word, "result": result})
-    if hint:
-        game["hints_used"] = game.get("hints_used", 0) + 1
     if all(r == "correct" for r in result):
         game["phase"] = "won"
         game["over"]  = True
@@ -77,9 +74,17 @@ def _score_guess(guess_word, answer):
 def hints(game):
     """Answer-list words that fit every guess so far — i.e. a word that, had
     it been the answer, would have produced exactly the same colours. Empty
-    before the first guess (everything fits) and once the game is over."""
+    before the first guess (everything fits) and once the game is over.
+
+    Seeing the list counts as a hint used — once per guess row, so opening it
+    again before the next guess costs nothing extra."""
     if game["over"] or not game["guesses"]:
         return []
+    row = len(game["guesses"])
+    rows = game.setdefault("hint_rows", [])
+    if row not in rows:
+        rows.append(row)
+        game["hints_used"] = game.get("hints_used", 0) + 1
     return sorted(w for w in WORDS
                   if all(_score_guess(g["word"], w) == g["result"]
                          for g in game["guesses"]))
