@@ -20,6 +20,7 @@ const els = {
   keyboard:    document.getElementById("keyboard"),
   timer:       document.getElementById("timer"),
   guessHistory:document.getElementById("guess-history"),
+  guessStats:  document.getElementById("guess-stats"),
 };
 
 const timer = createGameTimer(els.timer);
@@ -107,6 +108,15 @@ function renderGuessHistory(history) {
   });
 }
 
+function renderGuessStats(st) {
+  if (!st || !st.played) {
+    els.guessStats.textContent = "";
+    return;
+  }
+  els.guessStats.textContent =
+    `Avg ${st.avg.toFixed(2)} · ${st.pct_solved}% solved · ${st.played} played`;
+}
+
 function render(s) {
   state = s;
 
@@ -114,6 +124,7 @@ function render(s) {
   els.scoreHangman.textContent = s.score ? (s.score.hangman || 0) : 0;
   els.nameBtn.textContent = s.name || "Guest";
   renderGuessHistory(s.guess_history);
+  renderGuessStats(s.guess_stats);
 
   // Fill in submitted guesses
   s.guesses.forEach((g, r) => {
