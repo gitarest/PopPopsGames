@@ -413,7 +413,9 @@ async function solveForMe(equationText) {
   if (data.moves_needed === 0) {
     stopDemo();
     setButtonShown(els.showMe, false);
-    els.status.textContent = "That equation is already correct — nothing to fix!";
+    // Show their equation on the board so it's clear what was checked
+    buildEquationCells(data.original_slots, { interactive: false, flash: null });
+    els.status.textContent = `${prettyEquation(equationText.replace(/\s+/g, ""))} is already correct — nothing to fix! Tap New Game or Reset to go back.`;
     return;
   }
   const solutions = (data.solutions && data.solutions.length)
