@@ -6,6 +6,7 @@ let selected = null;      // {index, seg} of the picked-up stick, or null
 let demoing = false;      // true while a demo loop (Show Me or Solve One For Me) is running
 let demoGeneration = 0;   // bumped whenever a demo loop should be superseded/stopped
 let otherIndex = -1;      // which other solution Show Me is on after a win (-1 = none yet)
+let customSolve = null;   // Solve One For Me answers Show Me steps through: {originalSlots, solutions, total, index}
 
 // Segment coordinates for each cell kind (standard 7-segment digit layout).
 const DIGIT_COORDS = {
@@ -350,7 +351,29 @@ function prettyEquation(eq) {
   return eq.replace(/([+\-=])/g, " $1 ").replace(/-/g, "−");
 }
 
+/** Play answer number `index` of the current Solve One For Me result. */
+function playCustomSolve(index) {
+  const c = customSolve;
+  c.index = index % c.solutions.length;
+  const o = c.solutions[c.index];
+  const n = o.moves.length;
+  const moveWord = n === 1 ? "move" : "moves";
+  let text;
+  if (c.solutions.length === 1) {
+    text = `That takes ${n} ${moveWord} to fix: ${prettyEquation(o.equation)}. Tap New Game or Reset to stop.`;
+  } else {
+    text = `Way ${c.index + 1} of ${c.solutions.length}` +
+      (c.total > c.solutions.length ? ` (the ${c.solutions.length} shortest of ${c.total})` : "") +
+      `: ${prettyEquation(o.equation)} (${n} ${moveWord}) — tap Show Me for the next one.`;
+  }
+  runDemoLoop(c.originalSlots, o.moves, text);
+}
+
 function showMe() {
+  if (customSolve) {
+    playCustomSolve(customSolve.index + 1);
+    return;
+  }
   if (!state || !state.over) return;
   if (state.won) {
     // After a solve: step through the other answers, one per tap.
@@ -381,20 +404,41 @@ async function solveForMe(equationText) {
     return;
   }
   els.solveDialog.close();
+
+  // Clear the last game's messages and buttons — this is a fresh puzzle now.
+  els.result.hidden = true;
+  setButtonShown(els.giveUpBtn, false);
+  customSolve = null;
+
   if (data.moves_needed === 0) {
     stopDemo();
+    setButtonShown(els.showMe, false);
     els.status.textContent = "That equation is already correct — nothing to fix!";
     return;
   }
-  const moveWord = data.moves_needed === 1 ? "move" : "moves";
-  runDemoLoop(
-    data.original_slots,
-    data.solution,
-    `That takes ${data.moves_needed} ${moveWord} to fix — showing how. Tap New Game or Reset to stop.`
-  );
+  const solutions = (data.solutions && data.solutions.length)
+    ? data.solutions
+    : [{ equation: "", moves: data.solution }];
+  customSolve = {
+    originalSlots: data.original_slots,
+    solutions,
+    total: data.solutions_count || solutions.length,
+    index: 0,
+  };
+  // Show Me only when there's more than one way to step through
+  const many = solutions.length > 1;
+  setButtonShown(els.showMe, many);
+  els.showMe.textContent = many ? `Show Me (${customSolve.total} ways)` : "Show Me";
+  playCustomSolve(0);
+}
+
+function setButtonShown(btn, shown) {
+  btn.classList.toggle("actions-inactive", !shown);
+  btn.setAttribute("aria-hidden", shown ? "false" : "true");
 }
 
 function render(s) {
+  customSolve = null;   // any real game update ends a Solve One For Me session
   buildLevelToggle(s.levels);
   els.levelToggle.querySelectorAll(".level-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.level === s.level);
@@ -411,16 +455,14 @@ function render(s) {
   const others = s.won ? (s.other_solutions || []) : [];
   const othersTotal = s.won ? (s.other_solutions_count || others.length) : 0;
   const showMeAvailable = s.over && (s.gave_up || others.length > 0);
-  els.showMe.classList.toggle("actions-inactive", !showMeAvailable);
-  els.showMe.setAttribute("aria-hidden", showMeAvailable ? "false" : "true");
+  setButtonShown(els.showMe, showMeAvailable);
   els.showMe.textContent = othersTotal
     ? `Show Me (${othersTotal} other way${othersTotal === 1 ? "" : "s"})`
     : "Show Me";
   if (!s.over) otherIndex = -1;
 
   // Nothing left to give up once the puzzle is solved (or already given up)
-  els.giveUpBtn.classList.toggle("actions-inactive", s.over);
-  els.giveUpBtn.setAttribute("aria-hidden", s.over ? "true" : "false");
+  setButtonShown(els.giveUpBtn, !s.over);
 
   if (s.over) {
     els.status.textContent = "";
