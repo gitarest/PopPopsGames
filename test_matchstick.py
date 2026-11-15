@@ -672,12 +672,29 @@ class TestMatchstickApi(IsolatedScores):
         self.assertEqual(len(data["solution"]), 1)
         self.assertIsNotNone(data["original_slots"])
 
+    def test_solve_endpoint_lists_every_answer_with_fewest_moves(self):
+        c = self.client()
+        data = c.call("/matchstick/solve", {"equation": "9+1=7"})
+        self.assertTrue(data["ok"])
+        self.assertEqual(data["moves_needed"], 1)
+        self.assertEqual([s["equation"] for s in data["solutions"]], ["6+1=7", "8-1=7"])
+        self.assertEqual(data["solutions_count"], 2)
+        for sol in data["solutions"]:
+            self.assertEqual(len(sol["moves"]), data["moves_needed"])
+
+    def test_solve_endpoint_single_answer(self):
+        c = self.client()
+        data = c.call("/matchstick/solve", {"equation": "9+7=1"})
+        self.assertEqual([s["equation"] for s in data["solutions"]], ["8-7=1"])
+        self.assertEqual(data["solutions_count"], 1)
+
     def test_solve_endpoint_already_correct(self):
         c = self.client()
         data = c.call("/matchstick/solve", {"equation": "6+4=10"})
         self.assertTrue(data["ok"])
         self.assertEqual(data["moves_needed"], 0)
         self.assertEqual(data["solution"], [])
+        self.assertEqual(data["solutions"], [])
 
     def test_solve_endpoint_bad_input(self):
         c = self.client()

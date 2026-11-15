@@ -103,6 +103,8 @@ from matchstick import (
     game_state as ms_game_state,
     solve_custom_equation as ms_solve_custom_equation,
     serialize_slots as ms_serialize_slots,
+    other_solutions as ms_other_solutions,
+    MAX_SHOWN_SOLUTIONS as MS_MAX_SHOWN_SOLUTIONS,
     LEVEL_POINTS as MS_LEVEL_POINTS,
 )
 from minesweeper import (
@@ -1701,14 +1703,22 @@ class HangmanHandler(BaseHTTPRequestHandler):
             return
         original_slots, moves, moves_needed = result
         log_event(ip, session["name"], "matchstick", f"solve_custom:{text.strip()}:{moves_needed}_moves")
+        # Every answer that takes that same (minimum) number of moves, so
+        # Show Me can step through them when there's more than one.
+        answers = ms_other_solutions(original_slots, moves_needed) if moves_needed else []
+
+        def as_dicts(ms):
+            return [{"from_index": fi, "from_seg": fs, "to_index": ti, "to_seg": ts}
+                    for (fi, fs, ti, ts) in ms]
+
         self.send_json({
             "ok": True,
             "moves_needed": moves_needed,
             "original_slots": ms_serialize_slots(original_slots),
-            "solution": [
-                {"from_index": fi, "from_seg": fs, "to_index": ti, "to_seg": ts}
-                for (fi, fs, ti, ts) in moves
-            ],
+            "solution": as_dicts(moves),
+            "solutions": [{"equation": a["equation"], "moves": as_dicts(a["moves"])}
+                          for a in answers[:MS_MAX_SHOWN_SOLUTIONS]],
+            "solutions_count": len(answers),
         }, sid=sid, set_cookie=is_new)
 
     def handle_mw_new(self):
