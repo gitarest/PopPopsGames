@@ -418,6 +418,10 @@ function render(s) {
     : "Show Me";
   if (!s.over) otherIndex = -1;
 
+  // Nothing left to give up once the puzzle is solved (or already given up)
+  els.giveUpBtn.classList.toggle("actions-inactive", s.over);
+  els.giveUpBtn.setAttribute("aria-hidden", s.over ? "true" : "false");
+
   if (s.over) {
     els.status.textContent = "";
     if (s.gave_up) {
